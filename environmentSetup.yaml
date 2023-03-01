@@ -1,0 +1,106 @@
+Parameters:
+  DaysUntilTiering:
+    Type: Number
+    Description: Number of days until tiering takes place
+Resources:
+  RecordingBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      # IntelligentTieringConfigurations:
+      #   - Id: Tier1
+      #     Status: Enabled
+      #     Tierings:
+      #       - AccessTier: ARCHIVE_ACCESS
+      #         Days: !Ref DaysUntilTiering
+      NotificationConfiguration:
+        TopicConfigurations:
+          - Event: 's3:ObjectCreated:*'
+            Topic: !Ref TopicNewObject
+  TopicNewObject:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+        - Endpoint: !GetAtt LambdaUpdateDynamoDb.Arn
+          Protocol: "lambda"
+  snsTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics:
+        - !GetAtt TopicNewObject.TopicArn
+      PolicyDocument: # A policy document. JSON or YAML
+        Statement:
+        - Sid: grant-s3-publish
+          Effect: Allow
+          Principal:
+            Service: 's3.amazonaws.com'
+          Action:
+          - sns:Publish
+          Resource: !GetAtt TopicNewObject.TopicArn
+
+
+  LambdaUpdateDynamoDb:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.9
+      Handler: index.lambda_handler
+      Code:
+        ZipFile: |
+          import json
+
+          def lambda_handler(event, context):
+              # TODO implement
+              print('##### EVENT DATA#######')
+              print(event)
+              s3Message = json.loads(event['Records'][0]['Sns']['Message'])
+              s3Object = s3Message['Records'][0]['s3']['object']
+              
+              print(s3Object)
+              return {
+                  'statusCode': 200,
+                  'body': json.dumps('Hello from Lambda!')
+              }
+      Role: !GetAtt LambdaExecutionRole.Arn
+      FunctionName: LambdaUpdateDynamoDb
+    DependsOn: LambdaExecutionRole
+  PermissionForSnSToInvokeLambda:
+    Type: AWS::Lambda::Permission
+    Properties: 
+      FunctionName: !Ref LambdaUpdateDynamoDb
+      Action: "lambda:InvokeFunction"
+      Principal: "sns.amazonaws.com"
+      SourceArn: 
+        Fn::GetAtt: 
+          - "TopicNewObject"
+          - "TopicArn"      
+    DependsOn:
+      - "TopicNewObject"
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - 
+            Effect: Allow
+            Principal: 
+              Service:
+                - lambda.amazonaws.com
+            Action: 
+              - sts:AssumeRole
+      Policies:
+        - 
+          PolicyName: LambdaBasicExecutionRole
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+            - Effect: Allow
+              Action:
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+              Resource:
+              - !Sub arn:aws:logs:us-east-1:${AWS::AccountId}:log-group:/aws/lambda/LambdaUpdateDynamoDb:*
+            - Effect: Allow
+              Action:
+              - logs:CreateLogGroup
+              Resource: 
+                - !Sub arn:aws:logs:us-east-1:${AWS::AccountId}:*
