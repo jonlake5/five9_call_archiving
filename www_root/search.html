@@ -1,0 +1,40 @@
+<html>
+    <body>
+        <script src="main.js">
+        //     function submit() {
+        //     console.log("Hello");
+        //     let from_date = document.getElementById("from_date").value;
+        //     let to_date = document.getElementById("to_date").value;
+        //     let consumer_number = document.getElementById("consumer_number").value;
+        //     let agent_name = document.getElementById("agent_name").value;
+        //     console.log(`from_date is ${from_date}`);
+        //     console.log(`to_date is ${to_date}`);
+        //     console.log(`consumer_number is ${consumer_number}`);
+        //     console.log(`agent_name is ${agent_name}`);
+        // }
+        </script>
+        <form onsubmit="return false;">
+            <label>
+                Consumer Number
+                <input type="search" name="consumer_number" id="consumer_number"/>
+            </label>
+            <br>
+            <label>
+                From Date
+                <input type="date" name="from_date" id="from_date"/>
+            </label>
+            <br>
+            <label>
+                To Date
+                <input type="date" name="to_date" id="to_date" />
+            </label>
+            <br>
+            <label>
+                Agent Name
+                <input type="search" name="agent_name" id="agent_name" />
+            </label>
+            <br>
+            <input type="button" value="Search" id="search" onclick="submit(); return false;" />
+        </form>
+    </body>
+</html>

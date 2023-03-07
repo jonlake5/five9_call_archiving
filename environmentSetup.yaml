@@ -2,16 +2,31 @@ Parameters:
   DaysUntilTiering:
     Type: Number
     Description: Number of days until tiering takes place
+  DatabasePassword:
+    Type: String
+    Description: Database password
+    NoEcho: True
+  DatabaseClusterName:
+    Type: String
+    Description: Database Cluster Name
+  DatabaseName:
+    Type: String
+    Description: Name of database in cluster
+  DatabaseUserName:
+    Type: String
+    Description: Master user name of the database
+  
+
 Resources:
   RecordingBucket:
     Type: AWS::S3::Bucket
     Properties:
-      # IntelligentTieringConfigurations:
-      #   - Id: Tier1
-      #     Status: Enabled
-      #     Tierings:
-      #       - AccessTier: ARCHIVE_ACCESS
-      #         Days: !Ref DaysUntilTiering
+      IntelligentTieringConfigurations:
+        - Id: Tier1
+          Status: Enabled
+          Tierings:
+            - AccessTier: ARCHIVE_ACCESS
+              Days: !Ref DaysUntilTiering
       NotificationConfiguration:
         TopicConfigurations:
           - Event: 's3:ObjectCreated:*'
@@ -20,7 +35,7 @@ Resources:
     Type: AWS::SNS::Topic
     Properties:
       Subscription:
-        - Endpoint: !GetAtt LambdaUpdateDynamoDb.Arn
+        - Endpoint: !GetAtt LambdaUpdateDatabase.Arn
           Protocol: "lambda"
   snsTopicPolicy:
     Type: AWS::SNS::TopicPolicy
@@ -38,9 +53,14 @@ Resources:
           Resource: !GetAtt TopicNewObject.TopicArn
 
 
-  LambdaUpdateDynamoDb:
+  LambdaUpdateDatabase:
     Type: AWS::Lambda::Function
     Properties:
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds:
+          - !Ref AZ1Subnet1Lambda
       Runtime: python3.9
       Handler: index.lambda_handler
       Code:
@@ -60,12 +80,12 @@ Resources:
                   'body': json.dumps('Hello from Lambda!')
               }
       Role: !GetAtt LambdaExecutionRole.Arn
-      FunctionName: LambdaUpdateDynamoDb
+      FunctionName: LambdaUpdateDatabase1
     DependsOn: LambdaExecutionRole
   PermissionForSnSToInvokeLambda:
     Type: AWS::Lambda::Permission
     Properties: 
-      FunctionName: !Ref LambdaUpdateDynamoDb
+      FunctionName: !Ref LambdaUpdateDatabase
       Action: "lambda:InvokeFunction"
       Principal: "sns.amazonaws.com"
       SourceArn: 
@@ -98,9 +118,86 @@ Resources:
               - logs:CreateLogStream
               - logs:PutLogEvents
               Resource:
-              - !Sub arn:aws:logs:us-east-1:${AWS::AccountId}:log-group:/aws/lambda/LambdaUpdateDynamoDb:*
+              - !Sub arn:aws:logs:us-east-1:${AWS::AccountId}:log-group:/aws/lambda/LambdaUpdateDatabase:*
             - Effect: Allow
               Action:
               - logs:CreateLogGroup
               Resource: 
                 - !Sub arn:aws:logs:us-east-1:${AWS::AccountId}:*
+            - Effect: Allow
+              Action:
+                - ec2:DescribeNetworkInterfaces
+                - ec2:CreateNetworkInterface
+                - ec2:DeleteNetworkInterface
+                - ec2:DescribeInstances
+                - ec2:AttachNetworkInterface
+              Resource: "*"
+  Database:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      DatabaseName: !Ref DatabaseName
+      DBSubnetGroupName: !Ref DatabaseSubnetGroup
+      VpcSecurityGroupIds:
+        - !Ref DatabaseSecurityGroup
+      StorageEncrypted: true
+      Engine: aurora-postgresql
+      MasterUsername: !Ref DatabaseUserName
+      MasterUserPassword: !Ref DatabasePassword
+  DBVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+  AZ1Subnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: us-east-1a
+      CidrBlock: 10.0.1.0/24
+      VpcId: !Ref DBVPC
+      Tags:
+        - Value: Name
+          Key: db-private-1
+  AZ2Subnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: us-east-1b
+      CidrBlock: 10.0.2.0/24
+      VpcId: !Ref DBVPC
+      Tags:
+        - Value: Name
+          Key: db-private-2
+  AZ1Subnet1Lambda:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: us-east-1a
+      CidrBlock: 10.0.10.0/24
+      VpcId: !Ref DBVPC
+      Tags:
+        - Value: Name
+          Key: lambda-private-1
+  DatabaseSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Private subnet group for DB Cluster
+      DBSubnetGroupName: private-db-group
+      SubnetIds:
+        - !Ref AZ1Subnet1
+        - !Ref AZ2Subnet1
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: lambda-security-group
+      GroupDescription: Security Group for Lambda
+      VpcId: !Ref DBVPC
+  DatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: database-security-group
+      GroupDescription: Security Group for Database
+      VpcId: !Ref DBVPC
+      SecurityGroupIngress:
+        - FromPort: 5432
+          ToPort: 5432
+          IpProtocol: tcp
+          SourceSecurityGroupId: !Ref LambdaSecurityGroup
