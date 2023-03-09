@@ -16,6 +16,7 @@ Parameters:
     Type: String
     Description: Master user name of the database
   
+  
 
 Resources:
   RecordingBucket:
@@ -52,7 +53,6 @@ Resources:
           - sns:Publish
           Resource: !GetAtt TopicNewObject.TopicArn
 
-
   LambdaUpdateDatabase:
     Type: AWS::Lambda::Function
     Properties:
@@ -62,25 +62,12 @@ Resources:
         SubnetIds:
           - !Ref AZ1Subnet1Lambda
       Runtime: python3.9
-      Handler: index.lambda_handler
+      Handler: python_function.lambda_handler
       Code:
-        ZipFile: |
-          import json
-
-          def lambda_handler(event, context):
-              # TODO implement
-              print('##### EVENT DATA#######')
-              print(event)
-              s3Message = json.loads(event['Records'][0]['Sns']['Message'])
-              s3Object = s3Message['Records'][0]['s3']['object']
-              
-              print(s3Object)
-              return {
-                  'statusCode': 200,
-                  'body': json.dumps('Hello from Lambda!')
-              }
+        S3Bucket: callsearch-lambda-source
+        S3Key: lambda_db_update.zip
       Role: !GetAtt LambdaExecutionRole.Arn
-      FunctionName: LambdaUpdateDatabase1
+      FunctionName: LambdaUpdateDatabase
     DependsOn: LambdaExecutionRole
   PermissionForSnSToInvokeLambda:
     Type: AWS::Lambda::Permission
@@ -119,6 +106,7 @@ Resources:
               - logs:PutLogEvents
               Resource:
               - !Sub arn:aws:logs:us-east-1:${AWS::AccountId}:log-group:/aws/lambda/LambdaUpdateDatabase:*
+              - !Sub arn:aws:logs:us-east-1:${AWS::AccountId}:log-group:/aws/lambda/LambdaQueryDatabase:*
             - Effect: Allow
               Action:
               - logs:CreateLogGroup
@@ -132,23 +120,43 @@ Resources:
                 - ec2:DescribeInstances
                 - ec2:AttachNetworkInterface
               Resource: "*"
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: 
+                - !Ref DatabaseConnectionEndpoint
+                - !Ref DatabaseConnectionPort
+                - !Ref DatabaseMasterUser
+                - !Ref DatabaseMasterSecret
+                - !Ref SecretDatabaseName
   Database:
     Type: AWS::RDS::DBCluster
     Properties:
       DatabaseName: !Ref DatabaseName
       DBSubnetGroupName: !Ref DatabaseSubnetGroup
+      NetworkType: IPV4
       VpcSecurityGroupIds:
         - !Ref DatabaseSecurityGroup
       StorageEncrypted: true
       Engine: aurora-postgresql
+      EngineVersion: 13.7
       MasterUsername: !Ref DatabaseUserName
       MasterUserPassword: !Ref DatabasePassword
+      # ManageMasterUserPassword: true
+      # MasterUserSecret:
+      #   SecretArn: !Ref DatabaseMasterSecret
+      Port: 5432
+      DBClusterParameterGroupName: default.aurora-postgresql13
+
   DBVPC:
     Type: AWS::EC2::VPC
     Properties:
       CidrBlock: 10.0.0.0/16
       EnableDnsHostnames: true
       EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: callsearch-vpc
   AZ1Subnet1:
     Type: AWS::EC2::Subnet
     Properties:
@@ -156,8 +164,8 @@ Resources:
       CidrBlock: 10.0.1.0/24
       VpcId: !Ref DBVPC
       Tags:
-        - Value: Name
-          Key: db-private-1
+        - Value: db-private-1
+          Key: Name
   AZ2Subnet1:
     Type: AWS::EC2::Subnet
     Properties:
@@ -165,8 +173,8 @@ Resources:
       CidrBlock: 10.0.2.0/24
       VpcId: !Ref DBVPC
       Tags:
-        - Value: Name
-          Key: db-private-2
+        - Key: Name
+          Value: db-private-2
   AZ1Subnet1Lambda:
     Type: AWS::EC2::Subnet
     Properties:
@@ -174,8 +182,8 @@ Resources:
       CidrBlock: 10.0.10.0/24
       VpcId: !Ref DBVPC
       Tags:
-        - Value: Name
-          Key: lambda-private-1
+        - Key: Name
+          Value: lambda-private-1
   DatabaseSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
@@ -190,6 +198,30 @@ Resources:
       GroupName: lambda-security-group
       GroupDescription: Security Group for Lambda
       VpcId: !Ref DBVPC
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+  SecretsEndpointSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: secrets-endpoint-security-group
+      GroupDescription: Security Group for VPC Endpoint
+      VpcId: !Ref DBVPC
+      SecurityGroupIngress:
+        - IpProtocol: -1
+          SourceSecurityGroupId: !Ref LambdaSecurityGroup
+  EndpointSecrets:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      PrivateDnsEnabled: true
+      SecurityGroupIds:
+        - !Ref SecretsEndpointSecurityGroup
+      ServiceName: com.amazonaws.us-east-1.secretsmanager
+      SubnetIds:
+        - !Ref AZ1Subnet1Lambda
+      VpcEndpointType: Interface
+      VpcId: !Ref DBVPC
+
   DatabaseSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -201,3 +233,180 @@ Resources:
           ToPort: 5432
           IpProtocol: tcp
           SourceSecurityGroupId: !Ref LambdaSecurityGroup
+  DatabaseConnectionEndpoint:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Secret for the database connection
+      Name: DatabaseEndpoint
+      SecretString: !GetAtt Database.Endpoint.Address
+  DatabaseConnectionPort:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Port of the database connection
+      Name: DatabasePort
+      SecretString: !GetAtt Database.Endpoint.Port
+  DatabaseMasterSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: RDS Master User Secret
+      Name: DatabaseCredsArn
+      SecretString: !Ref DatabasePassword
+  DatabaseMasterUser:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: RDS Master Username
+      Name: MasterDatabaseUser
+      SecretString: !Ref DatabaseUserName
+  SecretDatabaseName:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: RDS Database Name
+      Name: DatabaseName
+      SecretString: !Ref DatabaseName
+  WebBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        RestrictPublicBuckets: false
+        IgnorePublicAcls: false
+      WebsiteConfiguration:
+        IndexDocument: search.html
+  WebBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref WebBucket
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Action: s3:GetObject
+            Effect: Allow
+            Resource: !Join ['', [!GetAtt WebBucket.Arn, '/*' ]]
+            Principal: '*'
+
+  DatabaseInstance1:
+    Type: AWS::RDS::DBInstance
+    DependsOn: Database
+    Properties:
+      DBClusterIdentifier: !Ref Database
+      DBInstanceClass: db.t3.medium
+      DBSecurityGroups:
+        - !Ref DatabaseSecurityGroup
+      Engine: aurora-postgresql
+      EngineVersion: 13.7
+      PubliclyAccessible: False
+      DBSubnetGroupName: !Ref DatabaseSubnetGroup
+      ManageMasterUserPassword: true
+      MasterUsername: !Ref DatabaseUserName
+      MasterUserPassword: !Ref DatabasePassword
+      DBParameterGroupName: default.aurora-postgresql13
+
+  LambdaQueryDatabase:
+    Type: AWS::Lambda::Function
+    Properties:
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds:
+          - !Ref AZ1Subnet1Lambda
+      Runtime: python3.9
+      Handler: lambda_db_query.lambda_handler
+      Code:
+        S3Bucket: callsearch-lambda-source
+        S3Key: lambda_db_query.zip
+      Role: !GetAtt LambdaExecutionRole.Arn
+      FunctionName: LambdaQueryDatabase
+    DependsOn: LambdaExecutionRole
+  APIGateway:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Description: API Gateway to query database via lambda
+      Name: ApiQueryDatabase
+  APIGatewayMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: POST
+      Integration:
+        IntegrationHttpMethod: POST
+        Type: AWS_PROXY
+        IntegrationResponses:
+          - StatusCode: 200
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaQueryDatabase.Arn}/invocations
+      RestApiId: !Ref APIGateway
+      ResourceId: !GetAtt APIGateway.RootResourceId
+      RequestModels:
+        application/json: !Ref APIGatewayModel
+  APIGatewayModel:
+    Type: AWS::ApiGateway::Model
+    Properties:
+      ContentType: application/json
+      Description: Model to accept query data and send to lambda
+      Name: QueryModel
+      RestApiId: !Ref APIGateway
+      Schema: |
+        {
+            "type" : "object",
+            "properties" : {
+              "agent_name" : {
+                "type" : "string"
+              },
+              "consumer_number" : {
+                "type" : "string"
+              },
+              "date_from" : {
+                "type" : "string"
+              },
+              "date_to" : {
+                "type" : "string"
+              }
+            }
+          }        
+  LambdaApiGatewayInvoke:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt LambdaQueryDatabase.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${APIGateway}/*/*/          
+
+  CloudWatchRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - apigateway.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Path: /
+      ManagedPolicyArns:
+        - >-
+          arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
+  Account:
+    Type: 'AWS::ApiGateway::Account'
+    Properties:
+      CloudWatchRoleArn: !GetAtt 
+        - CloudWatchRole
+        - Arn
+  ##Create Transfer server as they only support sftp
+  TransferServer:
+    Type: AWS::Transfer::Server
+    Properties:
+      EndpointType: PUBLIC
+      Protocols: 
+          - SFTP
+      SecurityPolicyName: Security-Policy-Name
+      IdentityProviderDetails: 
+          InvocationRole: Invocation-Role-ARN
+          Url: API_GATEWAY-Invocation-URL
+      IdentityProviderType: SERVICE_MANAGED
+  TransferUser:
+    Type: AWS::Transfer::User
+    Properties:
+      ServerId: !Ref TransferServer
+      UserName: transfer
+      HomeDirectory: !Sub /${RecordingBucket}
