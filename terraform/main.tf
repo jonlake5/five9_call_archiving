@@ -11,6 +11,9 @@ terraform {
 provider "aws" {
   region = "us-east-1"
 }
+
+
+#VPC, subnets, and security groups
 resource "aws_vpc" "db_vpc" {
   cidr_block = "10.0.0.0/16"
   enable_dns_support = "true"
@@ -41,6 +44,58 @@ resource "aws_db_subnet_group" "db_subnet_group" {
     }
 }
 
+resource "aws_subnet" "lambda_private" {
+  vpc_id = aws_vpc.db_vpc.id
+  cidr_block = "10.0.12.0/24"
+  availability_zone = "us-east-1a"  
+}
+
+
+
+
+#recording bucket, notifications and policies
+
+resource "aws_s3_bucket_intelligent_tiering_configuration" "recording_bucket_tiering" {
+  bucket = aws_s3_bucket.example.id
+  name   = "EntireBucket"
+  tiering {
+    access_tier = "ARCHIVE_ACCESS"
+    days        = var.days_until_tiering
+  }
+}
+
+
+
+resource "aws_s3_bucket" "recording_bucket" { 
+
+}
+
+resource "aws_s3_bucket_notification" "recording_bucket_notification" {
+  bucket = aws_s3_bucket.recording_bucket.id
+  topic {
+    topic_arn     = aws_sns_topic.new_object_topic.arn
+    events        = ["s3:ObjectCreated:*"]
+  }
+}
+
+resource "aws_sns_topic" "new_object_topic" {
+  name = "new_object_topic"
+
+}
+
+resource "aws_sns_topic_subscription" "new_object_lambda_target" {
+  topic_arn = aws_sns_topic.new_object_topic.arn
+  protocol  = "lambda"
+  endpoint  = aws_lambda_function.update_database.arn
+}
+
+resource "aws_lambda_function" "new_object_lambda_function" {
+  
+}
+
+
+
+#database
 resource "aws_rds_cluster" "postgresql" {
   cluster_identifier      = "aurora-cluster-demo"
   engine                  = "aurora-postgresql"
