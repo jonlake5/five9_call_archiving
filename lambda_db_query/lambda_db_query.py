@@ -37,13 +37,10 @@ def get_secret(secret_name):
 
 def lambda_handler(event, context):
     data = json.loads(event['body'])
-    db_creds_secret_arn = get_secret("DatabaseCredsArn")
-    db_creds_secret_name = db_creds_secret_arn.split(':')[-1]
-    db_creds = get_secret(db_creds_secret_name)
     db_host = get_secret("DatabaseEndpoint")
     db_port = get_secret("DatabasePort")
-    db_password = db_creds['password']
-    db_user = db_creds['username']
+    db_password = get_secret("DatabaseMasterPassword")
+    db_user = get_secret("DatabaseUser")
     db_name = get_secret("DatabaseName")
 
     connection = psycopg2.connect(user=db_user, password=db_password, host=db_host, database=db_name, port=db_port)
