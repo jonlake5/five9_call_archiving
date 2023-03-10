@@ -12,6 +12,11 @@ provider "aws" {
   region = "us-east-1"
 }
 
+### Setup
+data "aws_caller_identity" "current" {}
+locals {
+  account-id = data.aws_caller_identity.current.account_id
+}
 
 ### VPC, subnets, and security groups
 resource "aws_vpc" "db_vpc" {
@@ -130,7 +135,7 @@ resource "aws_s3_bucket_intelligent_tiering_configuration" "recording_bucket_tie
 }
 
 resource "aws_s3_bucket" "recording_bucket" {
-
+  bucket_prefix = "recording-bucket"
 }
 
 resource "aws_s3_bucket_notification" "recording_bucket_notification" {
@@ -352,7 +357,7 @@ resource "aws_secretsmanager_secret_version" "database_name_value" {
 
 ### Web Bucket
 resource "aws_s3_bucket" "web_bucket" {
-
+  bucket_prefix = "web-bucket"
 }
 resource "aws_s3_bucket_website_configuration" "example" {
   bucket = aws_s3_bucket.web_bucket.id
@@ -478,7 +483,8 @@ resource "aws_lambda_permission" "allow_api_gateway" {
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.lambda_query_database.function_name
   principal     = "apigateway.amazonaws.com"
-  source_arn    = aws_api_gateway_rest_api.api_gateway.arn
+  # source_arn    = "${aws_api_gateway_rest_api.api_gateway.arn}/*/*"
+  source_arn = "arn:aws:execute-api:us-east-1:${local.account-id}:${aws_api_gateway_rest_api.api_gateway.id}/*/*/"
 }
 
 ### API Gateway
@@ -488,10 +494,11 @@ resource "aws_api_gateway_rest_api" "api_gateway" {
 }
 
 resource "aws_api_gateway_method" "api_method" {
-  authorization = "NONE"
-  http_method   = "POST"
-  rest_api_id   = aws_api_gateway_rest_api.api_gateway.id
-  resource_id   = aws_api_gateway_rest_api.api_gateway.root_resource_id
+  authorization   = "NONE"
+  http_method     = "POST"
+  rest_api_id     = aws_api_gateway_rest_api.api_gateway.id
+  resource_id     = aws_api_gateway_rest_api.api_gateway.root_resource_id
+  request_models  = {"application/json": aws_api_gateway_model.api_gateway_model.name}
 }
 
 resource "aws_api_gateway_integration" "api_lambda_integration" {
