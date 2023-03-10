@@ -1,4 +1,2 @@
-variable "days_until_tiering" {
-    type = number
-    default = 90
-}
+days_until_tiering = 90
+my_region = "us-east-1"
