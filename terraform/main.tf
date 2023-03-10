@@ -242,7 +242,7 @@ data "archive_file" "lambda_update_database" {
 
 resource "aws_lambda_function" "lambda_update_database" {
   filename = data.archive_file.lambda_update_database.output_path
-  handler = "python_function.lambda_handler"
+  handler = "lambda_db_query.lambda_handler"
   function_name = "lambda_update_database"
   runtime =   "python3.9"
     vpc_config {
@@ -256,18 +256,22 @@ resource "aws_lambda_function" "lambda_update_database" {
 
 ### Database
 resource "aws_rds_cluster" "postgresql" {
-  cluster_identifier      = "aurora-cluster-demo"
-  engine                  = "aurora-postgresql"
-  availability_zones      = ["us-east-1a", "us-east-1c"]
-  database_name           = "callsearch"
-  master_username         = "callsearch"
-  master_password         = "password"
-  backup_retention_period = 5
-  preferred_backup_window = "07:00-09:00"
-  db_subnet_group_name    = aws_db_subnet_group.db_subnet_group.id
-  vpc_security_group_ids  = [aws_security_group.security_group_database.id]
-  skip_final_snapshot     = true
-  snapshot_identifier     = "my-last-snap"
+  cluster_identifier                  = "aurora-cluster-demo"
+  engine                              = "aurora-postgresql"
+  database_name                       = "callsearch"
+  master_username                     = "callsearch"
+  master_password                     = "password"
+  backup_retention_period             = 5
+  preferred_backup_window             = "07:00-09:00"
+  db_subnet_group_name                = aws_db_subnet_group.db_subnet_group.id
+  vpc_security_group_ids              = [aws_security_group.security_group_database.id]
+  skip_final_snapshot                 = true
+  iam_database_authentication_enabled = false
+  backtrack_window                    = 0
+  deletion_protection                 = false
+  enabled_cloudwatch_logs_exports     = []
+  iops                                = 0
+  tags                                =  null
 }
 
 resource "aws_rds_cluster_instance" "instance1" {
@@ -280,6 +284,7 @@ resource "aws_rds_cluster_instance" "instance1" {
 resource "aws_secretsmanager_secret" "database_endpoint" {
   description = "Connection Endpoint of Database"
   name = "DatabaseEndpoint"
+  recovery_window_in_days = 0
 }
 
 resource "aws_secretsmanager_secret_version" "database_endpoint_value" {
@@ -290,6 +295,7 @@ resource "aws_secretsmanager_secret_version" "database_endpoint_value" {
 resource "aws_secretsmanager_secret" "database_port" {
   description = "Connection Endpoint of Database"
   name = "DatabasePort"
+  recovery_window_in_days = 0
 }
 
 resource "aws_secretsmanager_secret_version" "database_port_value" {
@@ -300,6 +306,7 @@ resource "aws_secretsmanager_secret_version" "database_port_value" {
 resource "aws_secretsmanager_secret" "database_user" {
   description = "Database user name"
   name = "DatabaseUser"
+  recovery_window_in_days = 0
 }
 
 resource "aws_secretsmanager_secret_version" "database_user_value" {
@@ -310,11 +317,23 @@ resource "aws_secretsmanager_secret_version" "database_user_value" {
 resource "aws_secretsmanager_secret" "database_password" {
   description = "Database password"
   name = "DatabaseMasterPassword"
+  recovery_window_in_days = 0
 }
 
 resource "aws_secretsmanager_secret_version" "database_password_value" {
   secret_id     = aws_secretsmanager_secret.database_password.id
   secret_string = aws_rds_cluster.postgresql.master_password
+}
+
+resource "aws_secretsmanager_secret" "database_name" {
+  description = "Database name"
+  name = "DatabaseName"
+  recovery_window_in_days = 0
+}
+
+resource "aws_secretsmanager_secret_version" "database_name_value" {
+  secret_id     = aws_secretsmanager_secret.database_name.id
+  secret_string = aws_rds_cluster.postgresql.database_name
 }
 
 
@@ -391,19 +410,33 @@ data "aws_iam_policy_document" "assume_role_transfer" {
   }
 }
 
-resource "aws_iam_role_policy" "foo" {
-  name   = "tf-test-transfer-user-iam-policy"
-  role   = aws_iam_role.S3TransferUser.id
-  policy = data.aws_iam_policy_document.S3PutObject.json
-}
-
 data "aws_iam_policy_document" "S3PutObject" {
   statement {
     sid       = "AllowAccesstoS3"
     effect    = "Allow"
-    actions   = ["s3:PutObject","s3:ListObject", "s3:GetObject"]
-    resources = ["${aws_s3_bucket.recording_bucket.id}/*"]
+    actions   = ["s3:ListBucket"]
+    resources = ["${aws_s3_bucket.recording_bucket.arn}"]
   }
+  statement {
+    sid       = "HomeDirAccess"
+    effect    =  "Allow"
+    actions   = [
+      "s3:PutObject",
+      "s3:GetObject",
+      "s3:DeleteObject",
+      "s3:DeleteObjectVersion",
+      "s3:GetObjectVersion",
+      "s3:GetObjectACL",
+      "s3:PutObjectAcl"
+    ]
+    resources = ["${aws_s3_bucket.recording_bucket.arn}*"]
+  }   
+}
+
+resource "aws_iam_role_policy" "role_S3_upload" {
+  name = "S3TransferRole"
+  role = aws_iam_role.S3TransferUser.id
+  policy = data.aws_iam_policy_document.S3PutObject.json
 }
 
 
@@ -416,7 +449,7 @@ data "archive_file" "lambda_query_database" {
 
 resource "aws_lambda_function" "lambda_query_database" {
   filename = data.archive_file.lambda_update_database.output_path
-  handler = "python_function.lambda_handler"
+  handler = "lambda_function.lambda_handler"
   function_name = "lambda_query_database"
   runtime =   "python3.9"
     vpc_config {
