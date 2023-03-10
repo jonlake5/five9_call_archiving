@@ -17,8 +17,8 @@ Parameters:
     Description: Master user name of the database
   
   
-
 Resources:
+#SNS and recording bucket
   RecordingBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -129,6 +129,8 @@ Resources:
                 - !Ref DatabaseMasterUser
                 - !Ref DatabaseMasterSecret
                 - !Ref SecretDatabaseName
+ 
+ #Database
   Database:
     Type: AWS::RDS::DBCluster
     Properties:
@@ -147,7 +149,54 @@ Resources:
       #   SecretArn: !Ref DatabaseMasterSecret
       Port: 5432
       DBClusterParameterGroupName: default.aurora-postgresql13
-
+  DatabaseInstance1:
+    Type: AWS::RDS::DBInstance
+    DependsOn: Database
+    Properties:
+      DBClusterIdentifier: !Ref Database
+      DBInstanceClass: db.t3.medium
+      DBSecurityGroups:
+        - !Ref DatabaseSecurityGroup
+      Engine: aurora-postgresql
+      EngineVersion: 13.7
+      PubliclyAccessible: False
+      DBSubnetGroupName: !Ref DatabaseSubnetGroup
+      ManageMasterUserPassword: true
+      MasterUsername: !Ref DatabaseUserName
+      MasterUserPassword: !Ref DatabasePassword
+      DBParameterGroupName: default.aurora-postgresql13
+  DatabaseConnectionEndpoint:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Secret for the database connection
+      Name: DatabaseEndpoint
+      SecretString: !GetAtt Database.Endpoint.Address
+  DatabaseConnectionPort:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Port of the database connection
+      Name: DatabasePort
+      SecretString: !GetAtt Database.Endpoint.Port
+  DatabaseMasterSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: RDS Master User Secret
+      Name: DatabaseCredsArn
+      SecretString: !Ref DatabasePassword
+  DatabaseMasterUser:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: RDS Master Username
+      Name: MasterDatabaseUser
+      SecretString: !Ref DatabaseUserName
+  SecretDatabaseName:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: RDS Database Name
+      Name: DatabaseName
+      SecretString: !Ref DatabaseName
+  
+#VPC, subnets and security group
   DBVPC:
     Type: AWS::EC2::VPC
     Properties:
@@ -221,7 +270,6 @@ Resources:
         - !Ref AZ1Subnet1Lambda
       VpcEndpointType: Interface
       VpcId: !Ref DBVPC
-
   DatabaseSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -233,36 +281,8 @@ Resources:
           ToPort: 5432
           IpProtocol: tcp
           SourceSecurityGroupId: !Ref LambdaSecurityGroup
-  DatabaseConnectionEndpoint:
-    Type: AWS::SecretsManager::Secret
-    Properties:
-      Description: Secret for the database connection
-      Name: DatabaseEndpoint
-      SecretString: !GetAtt Database.Endpoint.Address
-  DatabaseConnectionPort:
-    Type: AWS::SecretsManager::Secret
-    Properties:
-      Description: Port of the database connection
-      Name: DatabasePort
-      SecretString: !GetAtt Database.Endpoint.Port
-  DatabaseMasterSecret:
-    Type: AWS::SecretsManager::Secret
-    Properties:
-      Description: RDS Master User Secret
-      Name: DatabaseCredsArn
-      SecretString: !Ref DatabasePassword
-  DatabaseMasterUser:
-    Type: AWS::SecretsManager::Secret
-    Properties:
-      Description: RDS Master Username
-      Name: MasterDatabaseUser
-      SecretString: !Ref DatabaseUserName
-  SecretDatabaseName:
-    Type: AWS::SecretsManager::Secret
-    Properties:
-      Description: RDS Database Name
-      Name: DatabaseName
-      SecretString: !Ref DatabaseName
+ 
+#Web bucket
   WebBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -285,23 +305,7 @@ Resources:
             Resource: !Join ['', [!GetAtt WebBucket.Arn, '/*' ]]
             Principal: '*'
 
-  DatabaseInstance1:
-    Type: AWS::RDS::DBInstance
-    DependsOn: Database
-    Properties:
-      DBClusterIdentifier: !Ref Database
-      DBInstanceClass: db.t3.medium
-      DBSecurityGroups:
-        - !Ref DatabaseSecurityGroup
-      Engine: aurora-postgresql
-      EngineVersion: 13.7
-      PubliclyAccessible: False
-      DBSubnetGroupName: !Ref DatabaseSubnetGroup
-      ManageMasterUserPassword: true
-      MasterUsername: !Ref DatabaseUserName
-      MasterUserPassword: !Ref DatabasePassword
-      DBParameterGroupName: default.aurora-postgresql13
-
+#Lambda query database
   LambdaQueryDatabase:
     Type: AWS::Lambda::Function
     Properties:
@@ -370,7 +374,6 @@ Resources:
       FunctionName: !GetAtt LambdaQueryDatabase.Arn
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${APIGateway}/*/*/          
-
   CloudWatchRole:
     Type: 'AWS::IAM::Role'
     Properties:
@@ -392,7 +395,8 @@ Resources:
       CloudWatchRoleArn: !GetAtt 
         - CloudWatchRole
         - Arn
-  ##Create Transfer server as they only support sftp
+
+##Create Transfer server as they only support sftp
   TransferServer:
     Type: AWS::Transfer::Server
     Properties:

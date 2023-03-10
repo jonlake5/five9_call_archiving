@@ -1,0 +1,119 @@
+Parameters:
+  DatabasePassword:
+    Type: String
+    Description: Database password
+    NoEcho: True
+  DatabaseClusterName:
+    Type: String
+    Description: Database Cluster Name
+  DatabaseName:
+    Type: String
+    Description: Name of database in cluster
+  DatabaseUserName:
+    Type: String
+    Description: Master user name of the database
+  
+  
+
+Resources:
+  Database:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      DatabaseName: !Ref DatabaseName
+      DBSubnetGroupName: !Ref DatabaseSubnetGroup
+      NetworkType: IPV4
+      StorageEncrypted: true
+      Engine: aurora-postgresql
+      MasterUsername: !Ref DatabaseUserName
+      MasterUserPassword: !Ref DatabasePassword
+      Port: 5432
+
+
+  DBVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: callsearch-vpc
+  AZ1Subnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: us-west-2a
+      CidrBlock: 10.0.1.0/24
+      VpcId: !Ref DBVPC
+      Tags:
+        - Value: db-private-1
+          Key: Name
+  AZ2Subnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: us-west-2b
+      CidrBlock: 10.0.2.0/24
+      VpcId: !Ref DBVPC
+      Tags:
+        - Key: Name
+          Value: db-private-2
+  AZ1Subnet1Lambda:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: us-west-2a
+      CidrBlock: 10.0.10.0/24
+      VpcId: !Ref DBVPC
+      Tags:
+        - Key: Name
+          Value: lambda-private-1
+  DatabaseSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Private subnet group for DB Cluster
+      DBSubnetGroupName: private-db-group
+      SubnetIds:
+        - !Ref AZ1Subnet1
+        - !Ref AZ2Subnet1
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    DependsOn: DBVPC    
+    Properties:
+      GroupName: lambda-security-group
+      GroupDescription: Security Group for Lambda
+      VpcId: !Ref DBVPC
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+  DatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    DependsOn: DBVPC
+    Properties:
+      GroupName: database-security-group
+      GroupDescription: Security Group for Database
+      VpcId: !Ref DBVPC
+      SecurityGroupIngress:
+        - FromPort: 5432
+          ToPort: 5432
+          IpProtocol: tcp
+          SourceSecurityGroupId: !Ref LambdaSecurityGroup
+
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: RDS Database Name
+      Name: DatabaseName
+      SecretString: !Ref DatabaseName
+  DatabaseInstance1:
+    Type: AWS::RDS::DBInstance
+    DependsOn: Database
+    Properties:
+      DBClusterIdentifier: !Ref Database
+      DBInstanceClass: db.t3.medium
+      DBSecurityGroups:
+        - !Ref DatabaseSecurityGroup
+      Engine: aurora-postgresql
+      PubliclyAccessible: False
+      DBSubnetGroupName: !Ref DatabaseSubnetGroup
+      ManageMasterUserPassword: true
+      MasterUsername: !Ref DatabaseUserName
+      MasterUserPassword: !Ref DatabasePassword
+
+
