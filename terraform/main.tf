@@ -15,94 +15,106 @@ provider "aws" {
 
 ### VPC, subnets, and security groups
 resource "aws_vpc" "db_vpc" {
-  cidr_block = "10.0.0.0/16"
-  enable_dns_support = "true"
+  cidr_block           = "10.0.0.0/16"
+  enable_dns_support   = "true"
   enable_dns_hostnames = "true"
+  tags = {
+    "Name" = "callsearch-vpc"
+  }
 }
 
 resource "aws_vpc_endpoint" "endpoint_secrets" {
-  vpc_id = aws_vpc.db_vpc.id
-  service_name = "com.amazonaws.us-east-1.secretsmanager"
+  vpc_id              = aws_vpc.db_vpc.id
+  service_name        = "com.amazonaws.us-east-1.secretsmanager"
   private_dns_enabled = true
-  security_group_ids = [aws_security_group.security_group_endpoint.id]
-  vpc_endpoint_type = "Interface"
-  subnet_ids = [ aws_subnet.lambda_private_1.id, aws_subnet.lambda_private_2.id]
+  security_group_ids  = [aws_security_group.security_group_endpoint.id]
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = [aws_subnet.lambda_private_1.id, aws_subnet.lambda_private_2.id]
 }
 resource "aws_subnet" "db_private_1" {
-  vpc_id = aws_vpc.db_vpc.id
-  cidr_block = "10.0.1.0/24"
+  vpc_id            = aws_vpc.db_vpc.id
+  cidr_block        = "10.0.1.0/24"
   availability_zone = "us-east-1a"
   tags = {
-    Name = "db_private"
+    Name = "db_private_1"
   }
 
 }
 
 resource "aws_subnet" "db_private_2" {
-  vpc_id = aws_vpc.db_vpc.id
-  cidr_block = "10.0.2.0/24"
+  vpc_id            = aws_vpc.db_vpc.id
+  cidr_block        = "10.0.2.0/24"
   availability_zone = "us-east-1c"
+  tags = {
+    "Name" = "db_private_2"
+  }
 }
 
 resource "aws_db_subnet_group" "db_subnet_group" {
-    name        = "db-subnet-group"
-    subnet_ids  = [ aws_subnet.db_private_1.id, aws_subnet.db_private_2.id]
-    tags = {
-        Name = "DB Subnet Group"
-    }
+  name       = "db-subnet-group"
+  subnet_ids = [aws_subnet.db_private_1.id, aws_subnet.db_private_2.id]
+  tags = {
+    Name = "DB Subnet Group"
+  }
 }
 
 resource "aws_subnet" "lambda_private_1" {
-  vpc_id = aws_vpc.db_vpc.id
-  cidr_block = "10.0.11.0/24"
-  availability_zone = "us-east-1a"  
+  vpc_id            = aws_vpc.db_vpc.id
+  cidr_block        = "10.0.11.0/24"
+  availability_zone = "us-east-1a"
+  tags = {
+    "Name" = "lambda_private_1"
+  }
 }
 
 resource "aws_subnet" "lambda_private_2" {
-  vpc_id = aws_vpc.db_vpc.id
-  cidr_block = "10.0.12.0/24"
-  availability_zone = "us-east-1c"  
+  vpc_id            = aws_vpc.db_vpc.id
+  cidr_block        = "10.0.12.0/24"
+  availability_zone = "us-east-1c"
+  tags = {
+    "Name" = "lambd_private_2"
+  }
 }
 
 
 resource "aws_security_group" "security_group_lambda" {
-  name    = "security-group-lambda"
+  name        = "security-group-lambda"
   description = "allow lambda outbound"
-  vpc_id = aws_vpc.db_vpc.id
+  vpc_id      = aws_vpc.db_vpc.id
 
 }
 
 resource "aws_security_group" "security_group_database" {
-  name    = "security-group-database"
+  name        = "security-group-database"
   description = "allow postgres inbound"
-  vpc_id = aws_vpc.db_vpc.id
+  vpc_id      = aws_vpc.db_vpc.id
 
 }
 
 resource "aws_security_group" "security_group_endpoint" {
-  name    = "security-group-endpoint"
+  name        = "security-group-endpoint"
   description = "allow https inbound"
-  vpc_id = aws_vpc.db_vpc.id
+  vpc_id      = aws_vpc.db_vpc.id
 
 }
 
 resource "aws_vpc_security_group_ingress_rule" "allow_https_in" {
   security_group_id = aws_security_group.security_group_endpoint.id
-  cidr_ipv4   = "0.0.0.0/0"
-  ip_protocol = -1
+  cidr_ipv4         = "0.0.0.0/0"
+  ip_protocol       = -1
 }
 
 resource "aws_vpc_security_group_egress_rule" "allow_all_outbound" {
   security_group_id = aws_security_group.security_group_lambda.id
-  cidr_ipv4   = "0.0.0.0/0"
-  ip_protocol = -1
+  cidr_ipv4         = "0.0.0.0/0"
+  ip_protocol       = -1
 }
 
 resource "aws_vpc_security_group_ingress_rule" "allow_postgres_inbound" {
-  security_group_id = aws_security_group.security_group_database.id
-  ip_protocol = "tcp"
-  from_port = 5432
-  to_port = 5432
+  security_group_id            = aws_security_group.security_group_database.id
+  ip_protocol                  = "tcp"
+  from_port                    = 5432
+  to_port                      = 5432
   referenced_security_group_id = aws_security_group.security_group_lambda.id
 }
 
@@ -117,15 +129,15 @@ resource "aws_s3_bucket_intelligent_tiering_configuration" "recording_bucket_tie
   }
 }
 
-resource "aws_s3_bucket" "recording_bucket" { 
+resource "aws_s3_bucket" "recording_bucket" {
 
 }
 
 resource "aws_s3_bucket_notification" "recording_bucket_notification" {
   bucket = aws_s3_bucket.recording_bucket.id
   topic {
-    topic_arn     = aws_sns_topic.new_object_topic.arn
-    events        = ["s3:ObjectCreated:*"]
+    topic_arn = aws_sns_topic.new_object_topic.arn
+    events    = ["s3:ObjectCreated:*"]
   }
 }
 
@@ -134,7 +146,7 @@ resource "aws_sns_topic" "new_object_topic" {
 }
 
 resource "aws_sns_topic_policy" "topic_allow_s3_publish" {
-  arn = aws_sns_topic.new_object_topic.arn
+  arn    = aws_sns_topic.new_object_topic.arn
   policy = data.aws_iam_policy_document.sns_topic_policy.json
 }
 
@@ -151,10 +163,10 @@ data "aws_iam_policy_document" "sns_topic_policy" {
       "SNS:Publish"
     ]
     principals {
-      type  = "Service"
+      type        = "Service"
       identifiers = ["s3.amazonaws.com"]
     }
-      effect =  "Allow"
+    effect = "Allow"
     resources = [
       aws_sns_topic.new_object_topic.arn
     ]
@@ -164,22 +176,22 @@ data "aws_iam_policy_document" "sns_topic_policy" {
 
 ### Lambda Query Database
 resource "aws_lambda_permission" "allow_sns" {
-  statement_id = "AllowSNSExecute"
-  action = "lambda:InvokeFunction"
+  statement_id  = "AllowSNSExecute"
+  action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.lambda_update_database.function_name
-  principal = "sns.amazonaws.com"
-  source_arn = aws_sns_topic.new_object_topic.arn
+  principal     = "sns.amazonaws.com"
+  source_arn    = aws_sns_topic.new_object_topic.arn
 }
 
 data "aws_iam_policy_document" "data_lambda_execution_role" {
   statement {
     actions = ["sts:AssumeRole"]
-    effect = "Allow"
+    effect  = "Allow"
     principals {
-      type= "Service"
+      type        = "Service"
       identifiers = ["lambda.amazonaws.com"]
     }
-  }   
+  }
 }
 
 resource "aws_iam_role" "lambda_execution_role" {
@@ -235,17 +247,18 @@ resource "aws_iam_policy" "lambda_logging" {
 }
 
 data "archive_file" "lambda_update_database" {
-  type = "zip"
-  source_dir = "../lambda_db_update"
+  type        = "zip"
+  source_dir  = "../lambda_db_update"
   output_path = "../lambda_update_db.zip"
 }
 
 resource "aws_lambda_function" "lambda_update_database" {
-  filename = data.archive_file.lambda_update_database.output_path
-  handler = "lambda_db_query.lambda_handler"
+  filename      = data.archive_file.lambda_update_database.output_path
+  handler       = "lambda_function.lambda_handler"
   function_name = "lambda_update_database"
-  runtime =   "python3.9"
-    vpc_config {
+  runtime       = "python3.9"
+  timeout       = 30
+  vpc_config {
     subnet_ids         = [aws_subnet.lambda_private_1.id, aws_subnet.lambda_private_2.id]
     security_group_ids = [aws_security_group.security_group_lambda.id]
   }
@@ -271,7 +284,7 @@ resource "aws_rds_cluster" "postgresql" {
   deletion_protection                 = false
   enabled_cloudwatch_logs_exports     = []
   iops                                = 0
-  tags                                =  null
+  tags                                = null
 }
 
 resource "aws_rds_cluster_instance" "instance1" {
@@ -282,8 +295,8 @@ resource "aws_rds_cluster_instance" "instance1" {
 }
 
 resource "aws_secretsmanager_secret" "database_endpoint" {
-  description = "Connection Endpoint of Database"
-  name = "DatabaseEndpoint"
+  description             = "Connection Endpoint of Database"
+  name                    = "DatabaseEndpoint"
   recovery_window_in_days = 0
 }
 
@@ -293,8 +306,8 @@ resource "aws_secretsmanager_secret_version" "database_endpoint_value" {
 }
 
 resource "aws_secretsmanager_secret" "database_port" {
-  description = "Connection Endpoint of Database"
-  name = "DatabasePort"
+  description             = "Connection Endpoint of Database"
+  name                    = "DatabasePort"
   recovery_window_in_days = 0
 }
 
@@ -304,8 +317,8 @@ resource "aws_secretsmanager_secret_version" "database_port_value" {
 }
 
 resource "aws_secretsmanager_secret" "database_user" {
-  description = "Database user name"
-  name = "DatabaseUser"
+  description             = "Database user name"
+  name                    = "DatabaseUser"
   recovery_window_in_days = 0
 }
 
@@ -315,8 +328,8 @@ resource "aws_secretsmanager_secret_version" "database_user_value" {
 }
 
 resource "aws_secretsmanager_secret" "database_password" {
-  description = "Database password"
-  name = "DatabaseMasterPassword"
+  description             = "Database password"
+  name                    = "DatabaseMasterPassword"
   recovery_window_in_days = 0
 }
 
@@ -326,8 +339,8 @@ resource "aws_secretsmanager_secret_version" "database_password_value" {
 }
 
 resource "aws_secretsmanager_secret" "database_name" {
-  description = "Database name"
-  name = "DatabaseName"
+  description             = "Database name"
+  name                    = "DatabaseName"
   recovery_window_in_days = 0
 }
 
@@ -376,20 +389,20 @@ data "aws_iam_policy_document" "allow_public_access" {
 
 ### Transfer Server
 resource "aws_transfer_server" "call_upload" {
-  endpoint_type           = "PUBLIC"
-  protocols               = ["SFTP"]
-  identity_provider_type  = "SERVICE_MANAGED"
+  endpoint_type          = "PUBLIC"
+  protocols              = ["SFTP"]
+  identity_provider_type = "SERVICE_MANAGED"
   tags = {
     Name = "Call Upload"
   }
 }
 
 resource "aws_transfer_user" "upload_user" {
-  server_id = aws_transfer_server.call_upload.id
-  user_name = "upload_user"
-  home_directory = "/${aws_s3_bucket.recording_bucket.id}"
+  server_id           = aws_transfer_server.call_upload.id
+  user_name           = "upload_user"
+  home_directory      = "/${aws_s3_bucket.recording_bucket.id}"
   home_directory_type = "PATH"
-  role = aws_iam_role.S3TransferUser.arn
+  role                = aws_iam_role.S3TransferUser.arn
 }
 
 resource "aws_iam_role" "S3TransferUser" {
@@ -418,9 +431,9 @@ data "aws_iam_policy_document" "S3PutObject" {
     resources = ["${aws_s3_bucket.recording_bucket.arn}"]
   }
   statement {
-    sid       = "HomeDirAccess"
-    effect    =  "Allow"
-    actions   = [
+    sid    = "HomeDirAccess"
+    effect = "Allow"
+    actions = [
       "s3:PutObject",
       "s3:GetObject",
       "s3:DeleteObject",
@@ -430,70 +443,70 @@ data "aws_iam_policy_document" "S3PutObject" {
       "s3:PutObjectAcl"
     ]
     resources = ["${aws_s3_bucket.recording_bucket.arn}*"]
-  }   
+  }
 }
 
 resource "aws_iam_role_policy" "role_S3_upload" {
-  name = "S3TransferRole"
-  role = aws_iam_role.S3TransferUser.id
+  name   = "S3TransferRole"
+  role   = aws_iam_role.S3TransferUser.id
   policy = data.aws_iam_policy_document.S3PutObject.json
 }
 
 
 ### Lambda Query Database
 data "archive_file" "lambda_query_database" {
-  type = "zip"
-  source_dir = "../lambda_db_query"
+  type        = "zip"
+  source_dir  = "../lambda_db_query"
   output_path = "../lambda_db_query.zip"
 }
 
 resource "aws_lambda_function" "lambda_query_database" {
-  filename = data.archive_file.lambda_update_database.output_path
-  handler = "lambda_function.lambda_handler"
+  filename      = data.archive_file.lambda_update_database.output_path
+  handler       = "lambda_function.lambda_handler"
   function_name = "lambda_query_database"
-  runtime =   "python3.9"
-    vpc_config {
+  runtime       = "python3.9"
+  vpc_config {
     subnet_ids         = [aws_subnet.lambda_private_1.id, aws_subnet.lambda_private_2.id]
     security_group_ids = [aws_security_group.security_group_lambda.id]
   }
-  role = aws_iam_role.lambda_execution_role.arn
-
+  role    = aws_iam_role.lambda_execution_role.arn
+  timeout = 30
 }
 
 resource "aws_lambda_permission" "allow_api_gateway" {
-  statement_id = "AllowApiGateway"
-  action = "lambda:InvokeFunction"
+  statement_id  = "AllowApiGateway"
+  action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.lambda_query_database.function_name
-  principal = "apigateway.amazonaws.com"
-  source_arn = aws_api_gateway_rest_api.api_gateway.arn
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = aws_api_gateway_rest_api.api_gateway.arn
 }
 
 ### API Gateway
 resource "aws_api_gateway_rest_api" "api_gateway" {
-  name = "ApiQueryDatabase"
+  name        = "ApiQueryDatabase"
   description = "API Gateway to query database"
 }
 
 resource "aws_api_gateway_method" "api_method" {
   authorization = "NONE"
-  http_method = "POST"
-  rest_api_id = aws_api_gateway_rest_api.api_gateway.id
-  resource_id = aws_api_gateway_rest_api.api_gateway.root_resource_id
+  http_method   = "POST"
+  rest_api_id   = aws_api_gateway_rest_api.api_gateway.id
+  resource_id   = aws_api_gateway_rest_api.api_gateway.root_resource_id
 }
 
 resource "aws_api_gateway_integration" "api_lambda_integration" {
   integration_http_method = "POST"
-  type = "AWS_PROXY"
-  uri = aws_lambda_function.lambda_query_database.invoke_arn
-  rest_api_id = aws_api_gateway_rest_api.api_gateway.id
-  resource_id = aws_api_gateway_rest_api.api_gateway.root_resource_id
-  http_method = aws_api_gateway_method.api_method.http_method
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.lambda_query_database.invoke_arn
+  rest_api_id             = aws_api_gateway_rest_api.api_gateway.id
+  resource_id             = aws_api_gateway_rest_api.api_gateway.root_resource_id
+  http_method             = aws_api_gateway_method.api_method.http_method
 }
 
 resource "aws_api_gateway_model" "api_gateway_model" {
-  rest_api_id = aws_api_gateway_rest_api.api_gateway.id
-  name = "myModel"
-  description = "My Schema"
+  rest_api_id  = aws_api_gateway_rest_api.api_gateway.id
+  name         = "myModel"
+  description  = "My Schema"
   content_type = "application/json"
   schema = jsonencode({
     "type" : "object",
