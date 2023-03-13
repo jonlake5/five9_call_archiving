@@ -7,3 +7,18 @@ variable "my_region" {
     type = string
     default = "us-east-1"
 }
+
+variable "base_domain_name" {
+    type = string
+    default = "jlake.aws.sentinel.com"
+}
+
+variable "auth_domain_name" {
+    type = string
+    default = "auth"
+}
+
+variable "app_domain_name" { 
+    type = string
+    default = "app"
+}

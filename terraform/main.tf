@@ -146,6 +146,28 @@ resource "aws_s3_bucket_notification" "recording_bucket_notification" {
   }
 }
 
+
+# Upload an object
+resource "aws_s3_object" "search" {
+
+  bucket = aws_s3_bucket.web_bucket.id
+  key    = "search.html"
+  # acl    = "private"  # or can be "public-read"
+  source = "../www_root/search.html"
+  etag = filemd5("../www_root/search.html")
+
+}
+
+resource "aws_s3_object" "script" {
+
+  bucket = aws_s3_bucket.web_bucket.id
+  key    = "main.js"
+  # acl    = "private"  # or can be "public-read"
+  source = "../www_root/main.js"
+  etag = filemd5("../www_root/main.js")
+
+}
+
 resource "aws_sns_topic" "new_object_topic" {
   name = "new_object_topic"
 }
@@ -359,7 +381,7 @@ resource "aws_secretsmanager_secret_version" "database_name_value" {
 resource "aws_s3_bucket" "web_bucket" {
   bucket_prefix = "web-bucket"
 }
-resource "aws_s3_bucket_website_configuration" "example" {
+resource "aws_s3_bucket_website_configuration" "web_config" {
   bucket = aws_s3_bucket.web_bucket.id
   index_document {
     suffix = "search.html"
@@ -484,7 +506,7 @@ resource "aws_lambda_permission" "allow_api_gateway" {
   function_name = aws_lambda_function.lambda_query_database.function_name
   principal     = "apigateway.amazonaws.com"
   # source_arn    = "${aws_api_gateway_rest_api.api_gateway.arn}/*/*"
-  source_arn = "arn:aws:execute-api:us-east-1:${local.account-id}:${aws_api_gateway_rest_api.api_gateway.id}/*/*/"
+  source_arn = "${aws_api_gateway_deployment.api_gateway_deployment.execution_arn}*/*/"
 }
 
 ### API Gateway
@@ -532,4 +554,44 @@ resource "aws_api_gateway_model" "api_gateway_model" {
       }
     }
   })
+}
+
+
+
+resource "aws_api_gateway_stage" "api_gateway_stage" {
+  deployment_id = aws_api_gateway_deployment.api_gateway_deployment.id
+  rest_api_id   = aws_api_gateway_rest_api.api_gateway.id
+  stage_name    = "prod"
+}
+
+
+resource "aws_api_gateway_deployment" "api_gateway_deployment" {
+  rest_api_id = aws_api_gateway_rest_api.api_gateway.id
+
+  triggers = {
+    redeployment = sha1(jsonencode(aws_api_gateway_rest_api.api_gateway.body))
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+
+
+### Outputs
+output "api_url" {
+  value = aws_api_gateway_deployment.api_gateway_deployment.invoke_url
+}
+
+output "recording_bucket_name" {
+  value = aws_s3_bucket.recording_bucket.id
+}
+
+output "web_bucket_name" {
+  value = aws_s3_bucket.web_bucket.id
+}
+
+output "web_bucket_url" {
+  value = aws_s3_bucket_website_configuration.web_config.website_endpoint
 }
