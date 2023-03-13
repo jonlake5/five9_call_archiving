@@ -1,4 +1,4 @@
-const uriEndpoint = 'https://jodgus5ns1.execute-api.us-east-1.amazonaws.com/prod';
+const uriEndpoint = 'https://qg2omq2odh.execute-api.us-east-1.amazonaws.com/prod/query';
 
 $('#input-form').on('submit', function(event) {
     event.preventDefault();
@@ -18,26 +18,24 @@ async function queryDatabase() {
         'from_date': getValueByElement('from_date'),
         'to_date': getValueByElement('to_date')
     };
-
+    console.log(data);
     let response = await fetch(uriEndpoint, {
         method: "POST",
         headers: {'Content-Type': 'application/json'}, 
         body: JSON.stringify(data)
     });
     if (response.status === 200) {
-        let data = await response.json();
-        console.log("Here is the data\n" + data);
+        let return_data = await response.json();
+        console.log("Here is the data\n" + return_data);
     }
     console.log(return_data);
-    updateConversation(return_data,user_visible);
-    
     return false;
-
 }
 
 function getValueByElement(element) {
-
+    return document.getElementById(element).value
 }
+
 let searchButton = document.getElementById("search");
 
 function submit() {

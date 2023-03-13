@@ -31,12 +31,16 @@ def get_secret(secret_name):
     # Decrypts secret using the associated KMS key.
     secret = get_secret_value_response['SecretString']
     return secret
-    # Your code goes here.
 
 
 
 def lambda_handler(event, context):
     data = json.loads(event['body'])
+    print(data)
+    if data['from_date'] is None:
+        print('No From Date')
+    else:
+        print('From date is %s' % data['from_date'])
     db_host = get_secret("DatabaseEndpoint")
     db_port = get_secret("DatabasePort")
     db_password = get_secret("DatabaseMasterPassword")
@@ -48,6 +52,11 @@ def lambda_handler(event, context):
 
     return {
     'statusCode': 200,
+    "headers": {
+            "Access-Control-Allow-Headers": "Content-Type",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+        },
     'body': json.dumps('Hello from Lambda!')
     }
 

@@ -260,8 +260,28 @@ data "archive_file" "lambda_update_database" {
 
 resource "aws_lambda_function" "lambda_update_database" {
   filename      = data.archive_file.lambda_update_database.output_path
-  handler       = "lambda_function.lambda_handler"
+  handler       = "lambda_update_db.lambda_handler"
   function_name = "lambda_update_database"
+  runtime       = "python3.9"
+  timeout       = 30
+  vpc_config {
+    subnet_ids         = [aws_subnet.lambda_private_1.id, aws_subnet.lambda_private_2.id]
+    security_group_ids = [aws_security_group.security_group_lambda.id]
+  }
+  role = aws_iam_role.lambda_execution_role.arn
+
+}
+
+data "archive_file" "lambda_create_tables" {
+  type        = "zip"
+  source_dir  = "../lambda_create_tables"
+  output_path = "../lambda_create_tables.zip"
+}
+
+resource "aws_lambda_function" "lambda_create_tables" {
+  filename      = data.archive_file.lambda_create_tables.output_path
+  handler       = "createTable.lambda_handler"
+  function_name = "lambda_create_tables"
   runtime       = "python3.9"
   timeout       = 30
   vpc_config {
@@ -360,6 +380,7 @@ resource "aws_secretsmanager_secret_version" "database_name_value" {
 resource "aws_s3_bucket" "web_bucket" {
   bucket_prefix = "web-bucket"
 }
+
 resource "aws_s3_bucket_website_configuration" "web_config" {
   bucket = aws_s3_bucket.web_bucket.id
   index_document {
@@ -391,7 +412,6 @@ data "aws_iam_policy_document" "allow_public_access" {
     ]
   }
 }
-
 # Upload an object
 resource "aws_s3_object" "search" {
 
@@ -662,7 +682,7 @@ resource "aws_lambda_function" "lambda_query_database" {
 
 locals {
   api_method = aws_api_gateway_method.api_method.http_method
-  api_resource = aws_api_gateway_resource.cors_resource.path_part
+  api_resource = aws_api_gateway_resource.query_resource.path_part
 }
 
 resource "aws_lambda_permission" "allow_api_gateway" {
@@ -680,11 +700,17 @@ resource "aws_api_gateway_rest_api" "api_gateway" {
   description = "API Gateway to query database"
 }
 
+resource "aws_api_gateway_resource" "query_resource" {
+    path_part     = "query"
+    parent_id     = "${aws_api_gateway_rest_api.api_gateway.root_resource_id}"
+    rest_api_id   = "${aws_api_gateway_rest_api.api_gateway.id}"
+}
+
 resource "aws_api_gateway_method" "api_method" {
   authorization   = "NONE"
   http_method     = "POST"
   rest_api_id     = aws_api_gateway_rest_api.api_gateway.id
-  resource_id     = aws_api_gateway_resource.cors_resource.id
+  resource_id     = aws_api_gateway_resource.query_resource.id
   request_models  = {"application/json": aws_api_gateway_model.api_gateway_model.name}
 }
 
@@ -693,7 +719,7 @@ resource "aws_api_gateway_integration" "api_lambda_integration" {
   type                    = "AWS_PROXY"
   uri                     = aws_lambda_function.lambda_query_database.invoke_arn
   rest_api_id             = aws_api_gateway_rest_api.api_gateway.id
-  resource_id             = aws_api_gateway_resource.cors_resource.id
+  resource_id             = aws_api_gateway_resource.query_resource.id
   http_method             = aws_api_gateway_method.api_method.http_method
 }
 
@@ -737,58 +763,18 @@ resource "aws_api_gateway_deployment" "api_gateway_deployment" {
   lifecycle {
     create_before_destroy = true
   }
+  depends_on = [
+    aws_api_gateway_method.api_method
+  ]
 }
-
 
 #cors support
-resource "aws_api_gateway_resource" "cors_resource" {
-    path_part     = "query"
-    parent_id     = "${aws_api_gateway_rest_api.api_gateway.root_resource_id}"
-    rest_api_id   = "${aws_api_gateway_rest_api.api_gateway.id}"
-}
 
-resource "aws_api_gateway_method" "options_method" {
-    rest_api_id   = "${aws_api_gateway_rest_api.api_gateway.id}"
-    resource_id   = "${aws_api_gateway_resource.cors_resource.id}"
-    http_method   = "OPTIONS"
-    authorization = "NONE"
-}
-
-resource "aws_api_gateway_method_response" "options_200" {
-    rest_api_id   = "${aws_api_gateway_rest_api.api_gateway.id}"
-    resource_id   = "${aws_api_gateway_resource.cors_resource.id}"
-    http_method   = "${aws_api_gateway_method.options_method.http_method}"
-    status_code   = "200"
-    response_models = {
-        "application/json" = "Empty"
-    }
-    response_parameters = {
-        "method.response.header.Access-Control-Allow-Headers" = true,
-        "method.response.header.Access-Control-Allow-Methods" = true,
-        "method.response.header.Access-Control-Allow-Origin" = true
-    }
-    depends_on = [aws_api_gateway_method.options_method]
-}
-
-resource "aws_api_gateway_integration" "options_integration" {
-    rest_api_id   = "${aws_api_gateway_rest_api.api_gateway.id}"
-    resource_id   = "${aws_api_gateway_resource.cors_resource.id}"
-    http_method   = "${aws_api_gateway_method.options_method.http_method}"
-    type          = "MOCK"
-    depends_on = [aws_api_gateway_method.options_method]
-}
-
-resource "aws_api_gateway_integration_response" "options_integration_response" {
-    rest_api_id   = "${aws_api_gateway_rest_api.api_gateway.id}"
-    resource_id   = "${aws_api_gateway_resource.cors_resource.id}"
-    http_method   = "${aws_api_gateway_method.options_method.http_method}"
-    status_code   = "${aws_api_gateway_method_response.options_200.status_code}"
-    response_parameters = {
-        "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
-        "method.response.header.Access-Control-Allow-Methods" = "'GET,OPTIONS,POST,PUT'",
-        "method.response.header.Access-Control-Allow-Origin" = "'*'"
-    }
-    depends_on = [aws_api_gateway_method_response.options_200]
+module "api-gateway-enable-cors" {
+source  = "squidfunk/api-gateway-enable-cors/aws"
+version = "0.3.3"
+api_id          = "${aws_api_gateway_rest_api.api_gateway.id}"
+api_resource_id = "${aws_api_gateway_resource.query_resource.id}"
 }
 
 ### Outputs
