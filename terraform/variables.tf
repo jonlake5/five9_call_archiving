@@ -22,3 +22,7 @@ variable "app_domain_name" {
     type = string
     default = "app"
 }
+
+variable "route53_zone_name" {
+    type = string
+}

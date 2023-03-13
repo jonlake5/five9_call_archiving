@@ -1,19 +1,13 @@
 <html>
+    <head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js" type="text/javascript"></script>
+    <!-- <link rel="stylesheet" href="main.css"> -->
+    </head>
     <body>
-        <script src="main.js">
-        //     function submit() {
-        //     console.log("Hello");
-        //     let from_date = document.getElementById("from_date").value;
-        //     let to_date = document.getElementById("to_date").value;
-        //     let consumer_number = document.getElementById("consumer_number").value;
-        //     let agent_name = document.getElementById("agent_name").value;
-        //     console.log(`from_date is ${from_date}`);
-        //     console.log(`to_date is ${to_date}`);
-        //     console.log(`consumer_number is ${consumer_number}`);
-        //     console.log(`agent_name is ${agent_name}`);
-        // }
-        </script>
-        <form onsubmit="return false;">
+        <!-- <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js" type="text/javascript"></script> -->
+        <script src="main.js"></script>
+
+        <form id="input-form" onsubmit="event.preventDefault(); queryDatabase();">
             <label>
                 Consumer Number
                 <input type="search" name="consumer_number" id="consumer_number"/>
@@ -34,7 +28,7 @@
                 <input type="search" name="agent_name" id="agent_name" />
             </label>
             <br>
-            <input type="button" value="Search" id="search" onclick="submit(); return false;" />
+            <input type="submit" value="Search" />
         </form>
     </body>
 </html>

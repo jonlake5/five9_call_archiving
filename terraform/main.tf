@@ -422,7 +422,7 @@ resource "aws_acm_certificate" "app" {
 }
 
 data "aws_route53_zone" "my_zone" {
-  name         = "jlake.aws.sentinel.com"
+  name         = var.route53_zone_name
   private_zone = false
 }
 
@@ -448,12 +448,9 @@ resource "aws_acm_certificate_validation" "cert_validation" {
   validation_record_fqdns = [for record in aws_route53_record.validation : record.fqdn]
 }
 
-
-
 locals {
   s3_origin_id = "myS3Origin"
 }
-
 
 resource "aws_cloudfront_distribution" "s3_distribution" {
   origin {
@@ -663,13 +660,18 @@ resource "aws_lambda_function" "lambda_query_database" {
   timeout = 30
 }
 
+locals {
+  api_method = aws_api_gateway_method.api_method.http_method
+  api_resource = aws_api_gateway_resource.cors_resource.path_part
+}
+
 resource "aws_lambda_permission" "allow_api_gateway" {
   statement_id  = "AllowApiGateway"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.lambda_query_database.function_name
   principal     = "apigateway.amazonaws.com"
   # source_arn    = "${aws_api_gateway_rest_api.api_gateway.arn}/*/*"
-  source_arn = "${aws_api_gateway_deployment.api_gateway_deployment.execution_arn}*/*/"
+  source_arn = "${aws_api_gateway_deployment.api_gateway_deployment.execution_arn}*/${local.api_method}/${local.api_resource}"
 }
 
 ### API Gateway
@@ -682,7 +684,7 @@ resource "aws_api_gateway_method" "api_method" {
   authorization   = "NONE"
   http_method     = "POST"
   rest_api_id     = aws_api_gateway_rest_api.api_gateway.id
-  resource_id     = aws_api_gateway_rest_api.api_gateway.root_resource_id
+  resource_id     = aws_api_gateway_resource.cors_resource.id
   request_models  = {"application/json": aws_api_gateway_model.api_gateway_model.name}
 }
 
@@ -691,7 +693,7 @@ resource "aws_api_gateway_integration" "api_lambda_integration" {
   type                    = "AWS_PROXY"
   uri                     = aws_lambda_function.lambda_query_database.invoke_arn
   rest_api_id             = aws_api_gateway_rest_api.api_gateway.id
-  resource_id             = aws_api_gateway_rest_api.api_gateway.root_resource_id
+  resource_id             = aws_api_gateway_resource.cors_resource.id
   http_method             = aws_api_gateway_method.api_method.http_method
 }
 
@@ -720,17 +722,14 @@ resource "aws_api_gateway_model" "api_gateway_model" {
 }
 
 
-
 resource "aws_api_gateway_stage" "api_gateway_stage" {
   deployment_id = aws_api_gateway_deployment.api_gateway_deployment.id
   rest_api_id   = aws_api_gateway_rest_api.api_gateway.id
   stage_name    = "prod"
 }
 
-
 resource "aws_api_gateway_deployment" "api_gateway_deployment" {
   rest_api_id = aws_api_gateway_rest_api.api_gateway.id
-
   triggers = {
     redeployment = sha1(jsonencode(aws_api_gateway_rest_api.api_gateway.body))
   }
@@ -741,10 +740,60 @@ resource "aws_api_gateway_deployment" "api_gateway_deployment" {
 }
 
 
+#cors support
+resource "aws_api_gateway_resource" "cors_resource" {
+    path_part     = "query"
+    parent_id     = "${aws_api_gateway_rest_api.api_gateway.root_resource_id}"
+    rest_api_id   = "${aws_api_gateway_rest_api.api_gateway.id}"
+}
+
+resource "aws_api_gateway_method" "options_method" {
+    rest_api_id   = "${aws_api_gateway_rest_api.api_gateway.id}"
+    resource_id   = "${aws_api_gateway_resource.cors_resource.id}"
+    http_method   = "OPTIONS"
+    authorization = "NONE"
+}
+
+resource "aws_api_gateway_method_response" "options_200" {
+    rest_api_id   = "${aws_api_gateway_rest_api.api_gateway.id}"
+    resource_id   = "${aws_api_gateway_resource.cors_resource.id}"
+    http_method   = "${aws_api_gateway_method.options_method.http_method}"
+    status_code   = "200"
+    response_models = {
+        "application/json" = "Empty"
+    }
+    response_parameters = {
+        "method.response.header.Access-Control-Allow-Headers" = true,
+        "method.response.header.Access-Control-Allow-Methods" = true,
+        "method.response.header.Access-Control-Allow-Origin" = true
+    }
+    depends_on = [aws_api_gateway_method.options_method]
+}
+
+resource "aws_api_gateway_integration" "options_integration" {
+    rest_api_id   = "${aws_api_gateway_rest_api.api_gateway.id}"
+    resource_id   = "${aws_api_gateway_resource.cors_resource.id}"
+    http_method   = "${aws_api_gateway_method.options_method.http_method}"
+    type          = "MOCK"
+    depends_on = [aws_api_gateway_method.options_method]
+}
+
+resource "aws_api_gateway_integration_response" "options_integration_response" {
+    rest_api_id   = "${aws_api_gateway_rest_api.api_gateway.id}"
+    resource_id   = "${aws_api_gateway_resource.cors_resource.id}"
+    http_method   = "${aws_api_gateway_method.options_method.http_method}"
+    status_code   = "${aws_api_gateway_method_response.options_200.status_code}"
+    response_parameters = {
+        "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
+        "method.response.header.Access-Control-Allow-Methods" = "'GET,OPTIONS,POST,PUT'",
+        "method.response.header.Access-Control-Allow-Origin" = "'*'"
+    }
+    depends_on = [aws_api_gateway_method_response.options_200]
+}
 
 ### Outputs
 output "api_url" {
-  value = aws_api_gateway_deployment.api_gateway_deployment.invoke_url
+  value = aws_api_gateway_stage.api_gateway_stage.invoke_url
 }
 
 output "recording_bucket_name" {
@@ -758,3 +807,12 @@ output "web_bucket_name" {
 output "web_bucket_url" {
   value = aws_s3_bucket_website_configuration.web_config.website_endpoint
 }
+
+output "sftp_host" {
+  value = aws_transfer_server.call_upload.endpoint
+}
+
+output "sftp_id" {
+  value = aws_transfer_server.call_upload.id
+}
+
