@@ -10,10 +10,6 @@ $('#input-form').on('submit', function(event) {
 });
 
 let all_agents = getAgents();
-console.log('Did we get here?')
-
-
-
 
 async function getAgents() {
     let return_data = {};
@@ -27,11 +23,6 @@ async function getAgents() {
             listAgents(return_data['agents']);
         })
 }
-
-
-
-
-
 
 function listAgents(agents) {
     console.log("Adding options for all agents");
@@ -49,7 +40,6 @@ function listAgents(agents) {
         selectItem.appendChild(opt);
     }
 }
-
 
 async function queryDatabase() {
     // let return_data = {};
@@ -99,30 +89,6 @@ function displayResults(results) {
     }
     body.appendChild(tbl);
 }
-
-
-// async function queryDatabase() {
-//     let return_data = {};
-
-//     let data = {
-//         'agent_name': getValueByElement('agent_name'),
-//         'consumer_number': getValueByElement('consumer_number'),
-//         'from_date': getValueByElement('from_date'),
-//         'to_date': getValueByElement('to_date')
-//     };
-//     console.log(data);
-//     let response = await fetch(uriEndpoint, {
-//         method: "POST",
-//         headers: {'Content-Type': 'application/json'}, 
-//         body: JSON.stringify(data)
-//     });
-//     if (response.status === 200) {
-//         let return_data = await response.json();
-//         console.log("Here is the data\n" + return_data);
-//     }
-//     console.log(return_data);
-//     return false;
-// }
 
 function getValueByElement(element) {
     return document.getElementById(element).value
