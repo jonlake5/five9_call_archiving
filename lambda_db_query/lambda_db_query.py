@@ -72,7 +72,10 @@ def lambda_handler(event, context):
 def db_query(conn,from_date,to_date,agent_id,consumer_number):
     cur = conn.cursor()
     # cur.execute("SELECT * from recordings WHERE agent_id = %s", (agent_id))
-    cur.execute("SELECT () from recordings")
+    #cur.execute("SELECT recordings.recording_url, recordings.recording_date, agents.agent_name,  recordings.consumer_number FROM recordings JOIN agents ON recordings.agent_id = agents.agent_id")
+    cur.execute(
+        "SELECT r.recording_url, r.recording_date, a.agent_name, r.consumer_number FROM recordings r JOIN agents a ON r.agent_id = a.agent_id WHERE r.agent_id = %s" % (agent_id)
+    )
     results = cur.fetchall()
     return_data = []
     for result in results:
