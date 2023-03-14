@@ -292,6 +292,39 @@ resource "aws_lambda_function" "lambda_create_tables" {
 
 }
 
+data "archive_file" "lambda_get_agents" {
+  type        = "zip"
+  source_dir  = "../lambda_get_agents"
+  output_path = "../lambda_get_agents.zip"
+}
+
+resource "aws_lambda_function" "lambda_get_agents" {
+  filename      = data.archive_file.lambda_get_agents.output_path
+  handler       = "lambda_get_agents.lambda_handler"
+  function_name = "lambda_get_agents"
+  runtime       = "python3.9"
+  timeout       = 30
+  vpc_config {
+    subnet_ids         = [aws_subnet.lambda_private_1.id, aws_subnet.lambda_private_2.id]
+    security_group_ids = [aws_security_group.security_group_lambda.id]
+  }
+  role = aws_iam_role.lambda_execution_role.arn
+}
+
+resource "aws_lambda_permission" "allow_api_gateway_get_agent" {
+  statement_id  = "AllowApiGateway"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.lambda_get_agents.function_name
+  principal     = "apigateway.amazonaws.com"
+  # source_arn    = "${aws_api_gateway_rest_api.api_gateway.arn}/*/*"
+  source_arn = "${aws_api_gateway_deployment.api_gateway_deployment.execution_arn}*/${local.get_agent_api_method}/${local.get_agent_api_resource}"
+}
+
+locals {
+  get_agent_api_method = aws_api_gateway_method.get_agents_method.http_method
+  get_agent_api_resource = aws_api_gateway_resource.get_agents_resource.path_part
+}
+
 
 ### Database
 resource "aws_rds_cluster" "postgresql" {
@@ -768,13 +801,43 @@ resource "aws_api_gateway_deployment" "api_gateway_deployment" {
   ]
 }
 
+resource "aws_api_gateway_integration" "api_lambda_get_agents" {
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.lambda_get_agents.invoke_arn
+  rest_api_id             = aws_api_gateway_rest_api.api_gateway.id
+  resource_id             = aws_api_gateway_resource.get_agents_resource.id
+  http_method             = aws_api_gateway_method.get_agents_method.http_method
+}
+
+resource "aws_api_gateway_resource" "get_agents_resource" {
+  path_part     = "agents"
+  parent_id     = "${aws_api_gateway_rest_api.api_gateway.root_resource_id}"
+  rest_api_id   = "${aws_api_gateway_rest_api.api_gateway.id}"
+}
+
+resource "aws_api_gateway_method" "get_agents_method" {
+  authorization   = "NONE"
+  http_method     = "GET"
+  rest_api_id     = aws_api_gateway_rest_api.api_gateway.id
+  resource_id     = aws_api_gateway_resource.get_agents_resource.id
+}
+
+
 #cors support
 
 module "api-gateway-enable-cors" {
-source  = "squidfunk/api-gateway-enable-cors/aws"
-version = "0.3.3"
-api_id          = "${aws_api_gateway_rest_api.api_gateway.id}"
-api_resource_id = "${aws_api_gateway_resource.query_resource.id}"
+  source  = "squidfunk/api-gateway-enable-cors/aws"
+  version = "0.3.3"
+  api_id          = "${aws_api_gateway_rest_api.api_gateway.id}"
+  api_resource_id = "${aws_api_gateway_resource.query_resource.id}"
+}
+
+module "api-gateway-enable-cors-get-agents" {
+  source  = "squidfunk/api-gateway-enable-cors/aws"
+  version = "0.3.3"
+  api_id          = "${aws_api_gateway_rest_api.api_gateway.id}"
+  api_resource_id = "${aws_api_gateway_resource.get_agents_resource.id}"
 }
 
 ### Outputs

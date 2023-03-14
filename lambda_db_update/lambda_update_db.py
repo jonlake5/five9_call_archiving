@@ -40,21 +40,18 @@ def lambda_handler(event, context):
     s3Node = s3Message['Records'][0]['s3']
     s3Object = s3Message['Records'][0]['s3']['object']
     s3Record = s3Message['Records'][0]
-    
     file_name = s3Object['key']
+    
     ##File format is agentName_callingNumber_date.wav
     bucket_name = s3Node['bucket']['name']
     region = s3Record['awsRegion']
-    
-    
     url = generate_url(file_name,bucket_name,region)
     (agent_name,consumer_number,recording_date) = parse_file(file_name)
+    print(agent_name)
     
     conn = database_connection()
     update_database(conn,agent_name,url,recording_date,consumer_number)
-    
-
-
+    conn.close()
     return {
     'statusCode': 200,
     'body': json.dumps('Hello from Lambda!')
@@ -62,6 +59,7 @@ def lambda_handler(event, context):
 
 def parse_file(file_name):
     file_string = os.path.splitext(file_name)[0]
+    file_string = file_string.replace('+', ' ')
     return file_string.split('_')
 
 def generate_url(key,bucket_name,region):
@@ -82,38 +80,48 @@ def database_connection():
     return psycopg2.connect(user=db_user, password=db_password, host=db_host, database=db_name, port=db_port)
 
 def update_database(conn,agent_name,url,recording_date,consumer_number):
-    agent_id = get_or_create_agent(conn,agent_name)
-    print(agent_id)
-    recording_url = url
-    # recording_date = ''
-    agent_id = get_or_create_agent(agent_name)
-    # consumer_number = ''
+    agent_id = get_agent_id(conn,agent_name)
+    print("Found agent_id: %s" % agent_id)
     print('#### Update database ####')
     print(agent_id,agent_name,url,recording_date,consumer_number)
+    
+    cur = conn.cursor()
+    cur.execute("INSERT INTO recordings (recording_url,recording_date,agent_id,consumer_number) VALUES ('%s','%s','%s','%s')" % (url,recording_date,agent_id,consumer_number))
+    conn.commit()
+    cur.close()
         
-def get_or_create_agent(conn,agent_name):
+def get_agent_id(conn,agent_name):
+    print("entered get_agent_id")
     cur = conn.cursor()
     check_agent_exists = agent_exists(conn,agent_name)
+    print("check_agent_exists -> %s", check_agent_exists)
     if check_agent_exists[0]:
         agent_id = check_agent_exists[1]
         cur.close()
         return agent_id
     else:
-        agent_id = create_and_return_agent(conn,agent_name)
-        
-def create_and_return_agent(conn,agent_name):
-    cur = conn.cursor()
-    cur.execute("INSERT INTO agents (agent_name) VALUES (%s) RETURNING agent_id" % agent_name)
-    cur.close
-    return cur.fetchone()[0]
-
-def agent_exists(conn,agent_name):
-    cur = conn.cursor()
-    cur.execute("SELECT agent_id FROM agents WHERE agent_name LIKE '%s';" % agent_name)
-    if cur.rowcount == 1:
-        results = cur.fetchone()
         cur.close()
-        return (True,results['agent_id'])
+        agent_id = create_and_return_agent(conn,agent_name)
+        return agent_id
+              
+def create_and_return_agent(conn,input_agent_name):
+    cur = conn.cursor()
+    print("Inserting %s into database" % input_agent_name)
+    print(input_agent_name.__class__)
+    cur.execute("INSERT INTO agents (agent_name) VALUES ('%s') RETURNING agent_id" % (str(input_agent_name)))
+    conn.commit()
+    agent_id = cur.fetchone()[0]
+    cur.close()
+    return agent_id
+
+def agent_exists(conn,input_agent_name):
+    cur = conn.cursor()
+    cur.execute("SELECT agent_id FROM agents WHERE agent_name LIKE '%s';" % input_agent_name)
+    if cur.rowcount == 1:
+        agent_id = cur.fetchone()[0]
+        print(agent_id)
+        cur.close()
+        return (True,agent_id)
     else:
         cur.close()
         return (False,0)

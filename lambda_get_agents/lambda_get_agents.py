@@ -35,18 +35,7 @@ def get_secret(secret_name):
 
 
 def lambda_handler(event, context):
-    data = json.loads(event['body'])
-    print(data)
-    if data['from_date'] is None:
-        print('No From Date')
-    else:
-        print('From date is %s' % data['from_date'])
-        
-    to_date = data['to_date']
-    from_date = data['from_date']
-    agent_id = data['agent_name']
-    consumer_number = data['consumer_number']
-    
+
     db_host = get_secret("DatabaseEndpoint")
     db_port = get_secret("DatabasePort")
     db_password = get_secret("DatabaseMasterPassword")
@@ -54,9 +43,14 @@ def lambda_handler(event, context):
     db_name = get_secret("DatabaseName")
 
     conn = psycopg2.connect(user=db_user, password=db_password, host=db_host, database=db_name, port=db_port)
-    results = db_query(conn,from_date,to_date,agent_id,consumer_number)
-    return_data = {'results':results}
-    
+    results = db_query(conn)
+    return_data = []
+    for result in results:
+        return_data.append({'agent_id': result[0],'agent_name': result[1] })
+        
+    print(return_data)
+    return_json = {'agents': return_data}
+    print(return_json)
     return {
     'statusCode': 200,
     "headers": {
@@ -64,19 +58,14 @@ def lambda_handler(event, context):
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
         },
-    'body': json.dumps(return_data, indent=4, sort_keys=True, default=str)
+    'body': json.dumps(return_json)
     }
 
 
-
-def db_query(conn,from_date,to_date,agent_id,consumer_number):
+def db_query(conn):
     cur = conn.cursor()
-    # cur.execute("SELECT * from recordings WHERE agent_id = %s", (agent_id))
-    cur.execute("SELECT () from recordings")
+    cur.execute("SELECT agent_id,agent_name from agents")
     results = cur.fetchall()
-    return_data = []
-    for result in results:
-        print(result)
-        return_data.append(result)
-    return return_data
+    print(results)
+    return results
 
