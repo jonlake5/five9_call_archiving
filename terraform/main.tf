@@ -456,6 +456,27 @@ resource "aws_s3_object" "search" {
   content_type = "text/html"
 }
 
+resource "aws_s3_object" "download_icon" {
+
+  bucket = aws_s3_bucket.web_bucket.id
+  key    = "file_download.jpg"
+  acl    = "public-read"
+  source = "../www_root/file_download.jpg"
+  etag = filemd5("../www_root/file_download.jpg")
+  content_type = "image/jpeg"
+}
+
+
+resource "aws_s3_object" "download_icon_2" {
+
+  bucket = aws_s3_bucket.web_bucket.id
+  key    = "file_download.png"
+  acl    = "public-read"
+  source = "../www_root/file_download.png"
+  etag = filemd5("../www_root/file_download.png")
+  content_type = "image/png"
+}
+
 resource "aws_s3_object" "script" {
 
   bucket = aws_s3_bucket.web_bucket.id

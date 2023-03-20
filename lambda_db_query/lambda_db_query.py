@@ -75,7 +75,7 @@ def db_query(conn,from_date,to_date,agent_id,consumer_number):
         consumer_number = '%'
     else:
         consumer_number = '%'+consumer_number+'%'
-    query_string = "SELECT r.recording_url, r.recording_date, a.agent_name, r.consumer_number FROM recordings r JOIN agents a ON r.agent_id = a.agent_id WHERE r.agent_id = %s AND r.recording_date::date >= %s AND r.recording_date::date <= %s AND r.consumer_number LIKE %s"
+    query_string = "SELECT r.recording_url, r.recording_date, a.agent_name, r.consumer_number FROM recordings r JOIN agents a ON r.agent_id = a.agent_id WHERE r.agent_id = %s AND r.recording_date::date >= %s AND r.recording_date::date <= %s AND r.consumer_number LIKE %s ORDER BY r.recording_date"
     query = cur.mogrify(query_string, (agent_id,from_date,to_date,consumer_number))
     print('Query being executed is %s' % query)
     cur.execute(

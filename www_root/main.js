@@ -5,6 +5,7 @@ const agentUriEndpoint = uriBase + 'agents';
 $('#input-form').on('submit', function(event) {
     event.preventDefault();
     console.log("form submitted!")  // sanity check
+    clearResults();
     queryDatabase();
     return false;
 });
@@ -50,6 +51,13 @@ function listAgents(agents) {
     }
 }
 
+function clearResults() {
+    let tbl = document.getElementById("results-table")
+    if (tbl) {
+        tbl.parentNode.removeChild(tbl);
+    }
+}
+
 async function queryDatabase() {  
     let to_date = getValueByElement('to_date') || new Date().toISOString().split('T')[0];
     let from_date = getValueByElement('from_date') || new Date('1970-01-01').toISOString().split('T')[0];
@@ -85,20 +93,53 @@ function displayResults(results) {
     //Create a table to display the results
     const body = document.body,
         tbl = document.createElement('table');
+        tbl.setAttribute("id","results-table")
 
     for (index in results) {
+        const field_mapping = {
+            "date": 0,
+            "agent": 1,
+            "consumer_number": 2,
+            "url": 3
+        }
         let tr = tbl.insertRow(index);
         let row = results[index];
         console.log('here is the row', row)
-        // let [row_id,url,date,agent_id,consumer_number] = row
-        for (cell_index in row) {
-            let td = tr.insertCell(cell_index)
-            td.innerHTML = row[cell_index]
-        }
+        let [url,date,agent_name,consumer_number] = row
+        console.log(`The url is ${url}, the date is ${date} agent is ${agent_name}`)
+        urlImage = createLink(url)
+        addCellText(tr,field_mapping['date'],date)
+        addCellText(tr,field_mapping['agent'],agent_name)
+        addCellText(tr,field_mapping['consumer_number'],consumer_number)
+        addCellLink(tr,field_mapping['url'],urlImage)
     }
     body.appendChild(tbl);
 }
 
+function addCellText(row,index,value) {
+    let td = row.insertCell(index)
+    td.innerHTML = value
+}
+
+function addCellLink(row,index,value) {
+    let td = row.insertCell(index)
+    td.appendChild(value)
+}
+
+
+function createLink(url) {
+    let img = document.createElement("img")
+    img.width = 25
+    img.height = 25
+    img.src = 'file_download.png';
+    let a = document.createElement("a")
+    a.href = url
+    a.target = "_blank"
+    a.appendChild(img)
+
+    return a
+
+}
 function getValueByElement(element) {
     return document.getElementById(element).value
 }
