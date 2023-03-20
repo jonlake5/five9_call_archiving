@@ -71,10 +71,16 @@ def lambda_handler(event, context):
 
 def db_query(conn,from_date,to_date,agent_id,consumer_number):
     cur = conn.cursor()
-    # cur.execute("SELECT * from recordings WHERE agent_id = %s", (agent_id))
-    #cur.execute("SELECT recordings.recording_url, recordings.recording_date, agents.agent_name,  recordings.consumer_number FROM recordings JOIN agents ON recordings.agent_id = agents.agent_id")
+    if consumer_number == '':
+        consumer_number = '%'
+    else:
+        consumer_number = '%'+consumer_number+'%'
+    query_string = "SELECT r.recording_url, r.recording_date, a.agent_name, r.consumer_number FROM recordings r JOIN agents a ON r.agent_id = a.agent_id WHERE r.agent_id = %s AND r.recording_date::date >= %s AND r.recording_date::date <= %s AND r.consumer_number LIKE %s"
+    query = cur.mogrify(query_string, (agent_id,from_date,to_date,consumer_number))
+    print('Query being executed is %s' % query)
     cur.execute(
-        "SELECT r.recording_url, r.recording_date, a.agent_name, r.consumer_number FROM recordings r JOIN agents a ON r.agent_id = a.agent_id WHERE r.agent_id = %s" % (agent_id)
+        query
+        #"SELECT r.recording_url, r.recording_date, a.agent_name, r.consumer_number FROM recordings r JOIN agents a ON r.agent_id = a.agent_id WHERE r.agent_id = %s AND r.recording_date::date >= '%s' AND r.recording_date::date <= '%s' AND r.consumer_number LIKE '%s'" % (agent_id,from_date,to_date,consumer_number)
     )
     results = cur.fetchall()
     return_data = []

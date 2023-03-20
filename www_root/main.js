@@ -51,7 +51,7 @@ function listAgents(agents) {
 }
 
 async function queryDatabase() {  
-    let to_date = getValueByElement('from_date') || new Date().toISOString().split('T')[0];
+    let to_date = getValueByElement('to_date') || new Date().toISOString().split('T')[0];
     let from_date = getValueByElement('from_date') || new Date('1970-01-01').toISOString().split('T')[0];
     let data = {
         'agent_name': getValueByElement('agent_name'),
