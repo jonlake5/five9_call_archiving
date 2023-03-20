@@ -9,6 +9,15 @@ $('#input-form').on('submit', function(event) {
     return false;
 });
 
+$('#from_date').on('change', function() {
+    console.log('Is date valid? ', validate_date());
+});
+
+
+$('#to_date').on('change', function() {
+    console.log('Is date valid? ', validate_date());
+});
+
 let all_agents = getAgents();
 
 async function getAgents() {
@@ -41,14 +50,14 @@ function listAgents(agents) {
     }
 }
 
-async function queryDatabase() {
-    // let return_data = {};
-
+async function queryDatabase() {  
+    let to_date = getValueByElement('from_date') || new Date().toISOString().split('T')[0];
+    let from_date = getValueByElement('from_date') || new Date('1970-01-01').toISOString().split('T')[0];
     let data = {
         'agent_name': getValueByElement('agent_name'),
         'consumer_number': getValueByElement('consumer_number'),
-        'from_date': getValueByElement('from_date'),
-        'to_date': getValueByElement('to_date')
+        'from_date': from_date,
+        'to_date': to_date
     };
     console.log(data);
 
@@ -108,3 +117,19 @@ function submit() {
     console.log(`agent_name is ${agent_name}`);
 }
 
+function validate_date() {
+    let from_date =  document.getElementById("from_date").value;
+    let to_date = document.getElementById("to_date").value;
+    console.log("From date", from_date);
+    console.log("To Date", to_date);
+    if (! from_date || ! to_date) {
+        console.log("One date is not specified")
+        return true;
+    } else if (from_date > to_date) {
+        console.log("From date is after to date");
+        return false;
+    } else {
+        console.log("Date validation default true");
+        return true;
+    }
+}
