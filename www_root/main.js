@@ -13,7 +13,7 @@ const agentUriEndpoint = uriBase + 'agents';
 // });
 
 $('#input-form').on('submit', function(event) {
-    document.getElementById("search-button").disabled = true;
+    freeze_button();
     event.preventDefault();
     
 
@@ -38,7 +38,7 @@ let select_agent_name = document.getElementById("agent_name");
 getAgents();
 
 async function getAgents() {
-    document.getElementById("search-button").disabled = true;
+    freeze_button();
     let return_data = {};
     const response = await fetch(agentUriEndpoint)
         .then(
@@ -48,7 +48,7 @@ async function getAgents() {
             json => return_data = json
         )
         .finally(() => {
-            document.getElementById("search-button").disabled = false;
+            unfreeze_button();
             listAgents(return_data['agents']);
         })
 }
@@ -104,7 +104,7 @@ async function queryDatabase() {
         }
     )
     .finally(() => {
-        document.getElementById("search-button").disabled = false;
+        unfreeze_button();
         return false;
         }
     )
@@ -171,7 +171,7 @@ function getValueByElement(element) {
     return document.getElementById(element).value
 }
 
-let searchButton = document.getElementById("search");
+// let searchButton = document.getElementById("search");
 
 function submit() {
     console.log("Hello");
@@ -188,16 +188,31 @@ function submit() {
 function validate_date() {
     let from_date =  document.getElementById("from_date").value;
     let to_date = document.getElementById("to_date").value;
+    let today = new Date().toISOString().split('T')[0];
     console.log("From date", from_date);
     console.log("To Date", to_date);
-    if (! from_date || ! to_date) {
+    if (from_date > today) {
+        freeze_button();
+        return false;
+    } else if (! from_date || ! to_date) {
         console.log("One date is not specified")
+        unfreeze_button();
         return true;
     } else if (from_date > to_date) {
         console.log("From date is after to date");
+        freeze_button();
         return false;
     } else {
         console.log("Date validation default true");
+        unfreeze_button();
         return true;
     }
+}
+
+function freeze_button() {
+    document.getElementById("search-button").disabled = true;
+}
+
+function unfreeze_button() {
+    document.getElementById("search-button").disabled = false;
 }
