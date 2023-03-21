@@ -459,17 +459,6 @@ resource "aws_s3_object" "search" {
 resource "aws_s3_object" "download_icon" {
 
   bucket = aws_s3_bucket.web_bucket.id
-  key    = "file_download.jpg"
-  acl    = "public-read"
-  source = "../www_root/file_download.jpg"
-  etag = filemd5("../www_root/file_download.jpg")
-  content_type = "image/jpeg"
-}
-
-
-resource "aws_s3_object" "download_icon_2" {
-
-  bucket = aws_s3_bucket.web_bucket.id
   key    = "file_download.png"
   acl    = "public-read"
   source = "../www_root/file_download.png"
@@ -487,6 +476,15 @@ resource "aws_s3_object" "script" {
   content_type = "application/javascript"
 }
 
+resource "aws_s3_object" "css" {
+
+  bucket = aws_s3_bucket.web_bucket.id
+  key    = "main.css"
+  acl    = "public-read"
+  source = "../www_root/main.css"
+  etag = filemd5("../www_root/main.css")
+  content_type = "text/css"
+}
 ##Cloudfront
 
 resource "aws_acm_certificate" "app" {

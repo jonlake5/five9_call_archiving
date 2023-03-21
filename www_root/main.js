@@ -2,11 +2,25 @@ const uriBase = 'https://qg2omq2odh.execute-api.us-east-1.amazonaws.com/prod/'
 const uriEndpoint = uriBase + 'query';
 const agentUriEndpoint = uriBase + 'agents';
 
+// $('#search-button').on('click', function(event) {
+//     $(this).disabled = true;
+//     event.preventDefault();
+//     console.log("form submitted!")  // sanity check
+//     clearResults();
+//     queryDatabase();
+//     // document.getElementById("search-button").disabled = false;
+//     return false;
+// });
+
 $('#input-form').on('submit', function(event) {
+    document.getElementById("search-button").disabled = true;
     event.preventDefault();
+    
+
     console.log("form submitted!")  // sanity check
     clearResults();
     queryDatabase();
+    
     return false;
 });
 
@@ -19,17 +33,22 @@ $('#to_date').on('change', function() {
     console.log('Is date valid? ', validate_date());
 });
 
-let all_agents = getAgents();
+let select_agent_name = document.getElementById("agent_name");
+
+getAgents();
 
 async function getAgents() {
+    document.getElementById("search-button").disabled = true;
     let return_data = {};
     const response = await fetch(agentUriEndpoint)
         .then(
             response => response.json()
-            )
+        )
         .then(
             json => return_data = json
-        ).finally(() => {
+        )
+        .finally(() => {
+            document.getElementById("search-button").disabled = false;
             listAgents(return_data['agents']);
         })
 }
@@ -54,6 +73,7 @@ function listAgents(agents) {
 function clearResults() {
     let tbl = document.getElementById("results-table")
     if (tbl) {
+        // tbl.parentElement.style.backgroundColor = "#"
         tbl.parentNode.removeChild(tbl);
     }
 }
@@ -84,6 +104,7 @@ async function queryDatabase() {
         }
     )
     .finally(() => {
+        document.getElementById("search-button").disabled = false;
         return false;
         }
     )
@@ -91,10 +112,17 @@ async function queryDatabase() {
 
 function displayResults(results) {
     //Create a table to display the results
-    const body = document.body,
-        tbl = document.createElement('table');
-        tbl.setAttribute("id","results-table")
-
+    const table_parent = document.getElementById("results-table-container");
+    const headers = ['Date','Agent','Consumer Number','Download'];
+    let tbl = document.createElement('table');
+    tbl.setAttribute("id","results-table");
+    //Add Header
+    let header = tbl.createTHead();
+    let header_row = header.insertRow(0);
+    for (index in headers) {
+        addCellText(header_row,index,headers[index]);
+    };
+    let tbody = tbl.createTBody();
     for (index in results) {
         const field_mapping = {
             "date": 0,
@@ -102,7 +130,8 @@ function displayResults(results) {
             "consumer_number": 2,
             "url": 3
         }
-        let tr = tbl.insertRow(index);
+
+        let tr = tbody.insertRow(index);
         let row = results[index];
         console.log('here is the row', row)
         let [url,date,agent_name,consumer_number] = row
@@ -113,7 +142,7 @@ function displayResults(results) {
         addCellText(tr,field_mapping['consumer_number'],consumer_number)
         addCellLink(tr,field_mapping['url'],urlImage)
     }
-    body.appendChild(tbl);
+    table_parent.appendChild(tbl);
 }
 
 function addCellText(row,index,value) {
@@ -126,7 +155,6 @@ function addCellLink(row,index,value) {
     td.appendChild(value)
 }
 
-
 function createLink(url) {
     let img = document.createElement("img")
     img.width = 25
@@ -136,7 +164,6 @@ function createLink(url) {
     a.href = url
     a.target = "_blank"
     a.appendChild(img)
-
     return a
 
 }
