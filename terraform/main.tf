@@ -306,6 +306,7 @@ resource "aws_lambda_function" "lambda_get_agents" {
   function_name = "lambda_get_agents"
   runtime       = "python3.9"
   timeout       = 30
+  memory_size   = 1024
   vpc_config {
     subnet_ids         = [aws_subnet.lambda_private_1.id, aws_subnet.lambda_private_2.id]
     security_group_ids = [aws_security_group.security_group_lambda.id]
