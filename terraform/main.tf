@@ -264,6 +264,7 @@ resource "aws_lambda_function" "lambda_update_database" {
   function_name = "lambda_update_database"
   runtime       = "python3.9"
   timeout       = 30
+  memory_size   = 1024
   vpc_config {
     subnet_ids         = [aws_subnet.lambda_private_1.id, aws_subnet.lambda_private_2.id]
     security_group_ids = [aws_security_group.security_group_lambda.id]
@@ -283,6 +284,7 @@ resource "aws_lambda_function" "lambda_create_tables" {
   handler       = "createTable.lambda_handler"
   function_name = "lambda_create_tables"
   runtime       = "python3.9"
+  memory_size   = 1024
   timeout       = 30
   vpc_config {
     subnet_ids         = [aws_subnet.lambda_private_1.id, aws_subnet.lambda_private_2.id]
@@ -810,6 +812,7 @@ resource "aws_lambda_function" "lambda_query_database" {
   }
   role    = aws_iam_role.lambda_execution_role.arn
   timeout = 30
+  memory_size = 1024
 }
 
 locals {
