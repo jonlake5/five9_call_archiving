@@ -33,24 +33,22 @@ def get_secret(secret_name):
     return secret
     # Your code goes here.
 
-
-
 def lambda_handler(event, context):
     s3Message = json.loads(event['Records'][0]['Sns']['Message'])
     s3Node = s3Message['Records'][0]['s3']
     s3Object = s3Message['Records'][0]['s3']['object']
     s3Record = s3Message['Records'][0]
-    file_name = s3Object['key']
-    
-    ##File format is agentName_callingNumber_date.wav
-    bucket_name = s3Node['bucket']['name']
-    region = s3Record['awsRegion']
-    url = generate_url(file_name,bucket_name,region)
-    (agent_name,consumer_number,recording_date) = parse_file(file_name)
+    file_name = s3Object['key'].replace('+',' ')
+    print("Here is S3 Record %s" % s3Record)
+    ##File format is agentName_callingNumber_date_time.wav
+    # bucket_name = s3Node['bucket']['name']
+    ## region = s3Record['awsRegion']
+    # url = generate_url(file_name,bucket_name,region)
+    (agent_name,consumer_number,recording_date,time) = parse_file(file_name)
     print(agent_name)
     
     conn = database_connection()
-    update_database(conn,agent_name,url,recording_date,consumer_number)
+    update_database(conn,agent_name,file_name,recording_date,consumer_number,time)
     conn.close()
     return {
     'statusCode': 200,
@@ -69,7 +67,7 @@ def generate_url(key,bucket_name,region):
         urllib.parse.quote(key, safe="~()*!.'"),
     )
     #print(url)
-    return url
+    return key
 
 def database_connection():
     db_host = get_secret("DatabaseEndpoint")
@@ -79,14 +77,14 @@ def database_connection():
     db_name = get_secret("DatabaseName")
     return psycopg2.connect(user=db_user, password=db_password, host=db_host, database=db_name, port=db_port)
 
-def update_database(conn,agent_name,url,recording_date,consumer_number):
+def update_database(conn,agent_name,url,recording_date,consumer_number,time):
     agent_id = get_agent_id(conn,agent_name)
     print("Found agent_id: %s" % agent_id)
     print('#### Update database ####')
     print(agent_id,agent_name,url,recording_date,consumer_number)
     
     cur = conn.cursor()
-    cur.execute("INSERT INTO recordings (recording_url,recording_date,agent_id,consumer_number) VALUES ('%s','%s','%s','%s')" % (url,recording_date,agent_id,consumer_number))
+    cur.execute("INSERT INTO recordings (recording_url,recording_date,agent_id,consumer_number,recording_time) VALUES ('%s','%s','%s','%s','%s')" % (url,recording_date,agent_id,consumer_number,time))
     conn.commit()
     cur.close()
         

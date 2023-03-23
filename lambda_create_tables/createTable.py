@@ -20,10 +20,11 @@ def create_tables():
     """
     CREATE TABLE recordings(
         recording_id SERIAL PRIMARY KEY,
-        recording_url CHAR(250),
+        recording_url TEXT,
         recording_date DATE,
+        recording_time TEXT,
         agent_id INT, 
-        consumer_number CHAR(15),
+        consumer_number TEXT,
         CONSTRAINT fk_recording_agent
             FOREIGN KEY(agent_id)
                 REFERENCES agents(agent_id)
@@ -53,8 +54,7 @@ def create_tables():
     finally:
         if conn is not None:
             conn.close()
-  
-    
+     
 def get_secret(secret_name):   
     region_name = "us-east-1"
     # Create a Secrets Manager client
@@ -76,5 +76,4 @@ def get_secret(secret_name):
     # Decrypts secret using the associated KMS key.
     secret = get_secret_value_response['SecretString']
     return secret
-
 

@@ -2,7 +2,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 4.58.0"
+      version = "~> 4.59.0"
     }
   }
 }
@@ -36,6 +36,7 @@ resource "aws_vpc_endpoint" "endpoint_secrets" {
   vpc_endpoint_type   = "Interface"
   subnet_ids          = [aws_subnet.lambda_private_1.id, aws_subnet.lambda_private_2.id]
 }
+
 resource "aws_subnet" "db_private_1" {
   vpc_id            = aws_vpc.db_vpc.id
   cidr_block        = "10.0.1.0/24"
@@ -77,10 +78,9 @@ resource "aws_subnet" "lambda_private_2" {
   cidr_block        = "10.0.12.0/24"
   availability_zone = "us-east-1c"
   tags = {
-    "Name" = "lambd_private_2"
+    "Name" = "lambda_private_2"
   }
 }
-
 
 resource "aws_security_group" "security_group_lambda" {
   name        = "security-group-lambda"
@@ -325,6 +325,85 @@ locals {
   get_agent_api_resource = aws_api_gateway_resource.get_agents_resource.path_part
 }
 
+### Lambda create presigned URL
+data "aws_iam_policy_document" "lambda_execution_role_s3_data" {
+  statement {
+    actions = ["sts:AssumeRole"]
+    effect  = "Allow"
+    principals {
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+    }
+  }
+}
+
+data "aws_iam_policy_document" "lambda_s3_policy_data" {
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "logs:CreateLogGroup",
+      "logs:CreateLogStream",
+      "logs:PutLogEvents",
+    ]
+
+    resources = ["arn:aws:logs:*:*:*"]
+  }
+  statement {
+    effect = "Allow"
+    actions = [
+      "s3:GetObject"
+    ]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_role" "lambda_s3_role" {
+  name               = "lambda_execution_role_s3"
+  assume_role_policy = data.aws_iam_policy_document.lambda_execution_role_s3_data.json
+}
+
+resource "aws_iam_policy" "lambda_s3_policy" {
+  name        = "lambda_s3_getObject"
+  path        = "/"
+  description = "IAM policy for lambda accessing s3"
+  policy      = data.aws_iam_policy_document.lambda_s3_policy_data.json
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_s3" {
+  role       = aws_iam_role.lambda_s3_role.id
+  policy_arn = aws_iam_policy.lambda_s3_policy.arn
+}
+
+data "archive_file" "lambda_s3" {
+  type        = "zip"
+  source_dir  = "../lambda_get_url"
+  output_path = "../lambda_get_url.zip"
+}
+
+resource "aws_lambda_function" "lambda_s3" {
+  filename      = data.archive_file.lambda_s3.output_path
+  handler       = "get_url.lambda_handler"
+  function_name = "lambda_get_url"
+  runtime       = "python3.9"
+  timeout       = 30
+  environment {
+    variables = {
+      "BUCKET_NAME" = aws_s3_bucket.recording_bucket.id
+    }
+  }
+  role = aws_iam_role.lambda_s3_role.arn
+}
+
+resource "aws_lambda_permission" "allow_api_gateway_get_url" {
+  statement_id  = "AllowApiGateway"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.lambda_s3.function_name
+  principal     = "apigateway.amazonaws.com"
+  # source_arn    = "${aws_api_gateway_rest_api.api_gateway.arn}/*/*"
+  source_arn = "${aws_api_gateway_deployment.api_gateway_deployment.execution_arn}/${aws_api_gateway_method.get_url_method.http_method}/${aws_api_gateway_resource.get_url_resource.path_part}"
+}
+
 
 ### Database
 resource "aws_rds_cluster" "postgresql" {
@@ -445,7 +524,8 @@ data "aws_iam_policy_document" "allow_public_access" {
     ]
   }
 }
-# Upload an object
+
+# Upload files to web bucket
 resource "aws_s3_object" "search" {
 
   bucket = aws_s3_bucket.web_bucket.id
@@ -485,11 +565,11 @@ resource "aws_s3_object" "css" {
   etag = filemd5("../www_root/main.css")
   content_type = "text/css"
 }
-##Cloudfront
 
+##Cloudfront
 resource "aws_acm_certificate" "app" {
-  domain_name       = "jlake.aws.sentinel.com"
-  subject_alternative_names = ["app.jlake.aws.sentinel.com","auth.jlake.aws.sentinel.com"]
+  domain_name       = var.base_domain_name
+  subject_alternative_names = ["${var.app_domain_name}.${var.base_domain_name}","${var.auth_domain_name}.${var.base_domain_name}"]
   validation_method = "DNS"
 }
 
@@ -746,12 +826,43 @@ resource "aws_lambda_permission" "allow_api_gateway" {
   source_arn = "${aws_api_gateway_deployment.api_gateway_deployment.execution_arn}*/${local.api_method}/${local.api_resource}"
 }
 
-### API Gateway
+### API Gateway Settings
 resource "aws_api_gateway_rest_api" "api_gateway" {
   name        = "ApiQueryDatabase"
   description = "API Gateway to query database"
 }
 
+resource "aws_api_gateway_authorizer" "cognito_authorizer" {
+  name = "cognito_authorizer"
+  rest_api_id = aws_api_gateway_rest_api.api_gateway.id
+  type = "COGNITO_USER_POOLS"
+  provider_arns = [aws_cognito_user_pool.user_pool.arn]
+}
+
+resource "aws_api_gateway_stage" "api_gateway_stage" {
+  deployment_id = aws_api_gateway_deployment.api_gateway_deployment.id
+  rest_api_id   = aws_api_gateway_rest_api.api_gateway.id
+  stage_name    = "prod"
+  description   = "Added url resource"
+}
+
+resource "aws_api_gateway_deployment" "api_gateway_deployment" {
+  rest_api_id = aws_api_gateway_rest_api.api_gateway.id
+  description = "Deployed at ${timestamp()}"
+  stage_name = "prod"
+  triggers = {
+    redeployment = sha1(jsonencode(aws_api_gateway_rest_api.api_gateway.body))
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+  depends_on = [
+    aws_api_gateway_method.api_method
+  ]
+}
+
+###Database query resource/method/integration
 resource "aws_api_gateway_resource" "query_resource" {
     path_part     = "query"
     parent_id     = "${aws_api_gateway_rest_api.api_gateway.root_resource_id}"
@@ -759,7 +870,8 @@ resource "aws_api_gateway_resource" "query_resource" {
 }
 
 resource "aws_api_gateway_method" "api_method" {
-  authorization   = "NONE"
+  authorization   = "COGNITO_USER_POOLS"
+  authorizer_id   = aws_api_gateway_authorizer.cognito_authorizer.id
   http_method     = "POST"
   rest_api_id     = aws_api_gateway_rest_api.api_gateway.id
   resource_id     = aws_api_gateway_resource.query_resource.id
@@ -799,27 +911,7 @@ resource "aws_api_gateway_model" "api_gateway_model" {
   })
 }
 
-
-resource "aws_api_gateway_stage" "api_gateway_stage" {
-  deployment_id = aws_api_gateway_deployment.api_gateway_deployment.id
-  rest_api_id   = aws_api_gateway_rest_api.api_gateway.id
-  stage_name    = "prod"
-}
-
-resource "aws_api_gateway_deployment" "api_gateway_deployment" {
-  rest_api_id = aws_api_gateway_rest_api.api_gateway.id
-  triggers = {
-    redeployment = sha1(jsonencode(aws_api_gateway_rest_api.api_gateway.body))
-  }
-
-  lifecycle {
-    create_before_destroy = true
-  }
-  depends_on = [
-    aws_api_gateway_method.api_method
-  ]
-}
-
+### API Gateway Get Agents resource/method/integration
 resource "aws_api_gateway_integration" "api_lambda_get_agents" {
   integration_http_method = "POST"
   type                    = "AWS_PROXY"
@@ -836,12 +928,64 @@ resource "aws_api_gateway_resource" "get_agents_resource" {
 }
 
 resource "aws_api_gateway_method" "get_agents_method" {
-  authorization   = "NONE"
+  authorization   = "COGNITO_USER_POOLS"
+  authorizer_id   = aws_api_gateway_authorizer.cognito_authorizer.id
   http_method     = "GET"
   rest_api_id     = aws_api_gateway_rest_api.api_gateway.id
   resource_id     = aws_api_gateway_resource.get_agents_resource.id
 }
 
+resource "aws_api_gateway_gateway_response" "unauthorized" {
+  rest_api_id     = aws_api_gateway_rest_api.api_gateway.id
+  status_code     = "401"
+  response_type   = "UNAUTHORIZED"
+  response_templates = {
+    "application/json" = "{\"message\":$context.error.messageString}"
+  }
+  response_parameters = {
+    "gatewayresponse.header.Access-Control-Allow-Origin" = "'*'"
+  }
+}
+
+## Resource and method for getting presigned URL
+resource "aws_api_gateway_resource" "get_url_resource" {
+  path_part     = "get_url"
+  parent_id     = "${aws_api_gateway_rest_api.api_gateway.root_resource_id}"
+  rest_api_id   = "${aws_api_gateway_rest_api.api_gateway.id}"
+}
+
+resource "aws_api_gateway_model" "api_gateway_model_s3" {
+  rest_api_id  = aws_api_gateway_rest_api.api_gateway.id
+  name         = "s3Model"
+  description  = "Model to take object_name from api gateway"
+  content_type = "application/json"
+  schema = jsonencode({
+    "type" : "object",
+    "properties" : {
+      "object_name" : {
+        "type" : "string"
+      }
+    }
+  })
+}
+
+resource "aws_api_gateway_method" "get_url_method" {
+  authorization   = "COGNITO_USER_POOLS"
+  authorizer_id   = aws_api_gateway_authorizer.cognito_authorizer.id
+  http_method     = "POST"
+  rest_api_id     = aws_api_gateway_rest_api.api_gateway.id
+  resource_id     = aws_api_gateway_resource.get_url_resource.id
+  request_models  = {"application/json": aws_api_gateway_model.api_gateway_model_s3.name}
+}
+
+resource "aws_api_gateway_integration" "api_lambda_integration_s3" {
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.lambda_s3.invoke_arn
+  rest_api_id             = aws_api_gateway_rest_api.api_gateway.id
+  resource_id             = aws_api_gateway_resource.get_url_resource.id
+  http_method             = aws_api_gateway_method.get_url_method.http_method
+}
 
 #cors support
 
@@ -857,6 +1001,61 @@ module "api-gateway-enable-cors-get-agents" {
   version = "0.3.3"
   api_id          = "${aws_api_gateway_rest_api.api_gateway.id}"
   api_resource_id = "${aws_api_gateway_resource.get_agents_resource.id}"
+  # allow_headers = ["cognito-auth-token"]
+}
+
+module "api-gateway-enable-cors-get-url" {
+  source  = "squidfunk/api-gateway-enable-cors/aws"
+  version = "0.3.3"
+  api_id          = "${aws_api_gateway_rest_api.api_gateway.id}"
+  api_resource_id = "${aws_api_gateway_resource.get_url_resource.id}"
+}
+
+### Cognito Pool
+resource "aws_cognito_user_pool" "user_pool" {
+  name = "callsearch_pool"
+  mfa_configuration  = "OFF"
+
+}
+
+resource "aws_cognito_user_pool_domain" "main" {
+  domain          = "${var.auth_domain_name}.${var.base_domain_name}"
+  certificate_arn = aws_acm_certificate.app.arn
+  user_pool_id    = aws_cognito_user_pool.user_pool.id
+}
+
+resource "aws_cognito_user_pool_client" "client" {
+  name = "web-client"
+  user_pool_id = aws_cognito_user_pool.user_pool.id
+  generate_secret                       = false
+  callback_urls                         = ["https://${var.app_domain_name}.${var.base_domain_name}"]
+  default_redirect_uri                  = "https://${var.app_domain_name}.${var.base_domain_name}"
+  allowed_oauth_flows_user_pool_client  = true
+  allowed_oauth_flows                   = ["code", "implicit"]
+  allowed_oauth_scopes                  = ["email", "openid"]
+  supported_identity_providers          = ["COGNITO"]
+  explicit_auth_flows                   = ["ALLOW_REFRESH_TOKEN_AUTH", "ALLOW_USER_SRP_AUTH"]
+}
+
+resource "aws_cognito_user" "example" {
+  user_pool_id = aws_cognito_user_pool.user_pool.id
+  username     = "jlake@sentinel.com"
+  attributes = {
+    email          = "jlake@sentinel.com"
+    email_verified = true
+  }
+  password = var.cognito_user_password
+}
+
+resource "aws_route53_record" "auth-cognito-A" {
+  name    = aws_cognito_user_pool_domain.main.domain
+  type    = "A"
+  zone_id = data.aws_route53_zone.my_zone.zone_id
+  alias {
+    evaluate_target_health = false
+    name    = aws_cognito_user_pool_domain.main.cloudfront_distribution
+    zone_id = aws_cognito_user_pool_domain.main.cloudfront_distribution_zone_id
+  }
 }
 
 ### Outputs

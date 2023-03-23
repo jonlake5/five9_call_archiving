@@ -26,3 +26,7 @@ variable "app_domain_name" {
 variable "route53_zone_name" {
     type = string
 }
+
+variable "cognito_user_password" {
+    type = string
+}
