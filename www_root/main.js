@@ -3,7 +3,7 @@ const uriEndpoint = uriBase + 'query';
 const agentUriEndpoint = uriBase + 'agents';
 const getUrlUriEndoint = uriBase + 'get_url';
 const authUrl = 'https://auth.jlake.aws.sentinel.com/login?client_id=fpmf66abi4079ea7m5ecbl5fo&response_type=token&scope=email+openid&redirect_uri=https%3A%2F%2Fapp.jlake.aws.sentinel.com'
-// const auth_header = 'cognito-auth-token';
+
 //Verify this person is authenticated
 const queryString = window.location.href;
 const urlParams = new URLSearchParams(queryString);
@@ -13,8 +13,35 @@ console.log("ID Token is " + id_token);
 if (! id_token) {
     console.log("Not seeing id_token in params")
     window.location.replace(authUrl)
-    
+} else {
+    getAgents();
 }
+
+$(document).on("click", ".download-button", function(){
+    // Do something with `$(this)`.
+    console.log(this)
+    getPreSignedUrl(this.value)
+  });
+
+$('#input-form').on('submit', function(event) {
+    freeze_button();
+    event.preventDefault();
+    
+
+    console.log("form submitted!")  // sanity check
+    clearResults();
+    queryDatabase();
+    
+    return false;
+});
+
+$('#from_date').on('change', function() {
+    console.log('Is date valid? ', validate_date());
+});
+
+$('#to_date').on('change', function() {
+    console.log('Is date valid? ', validate_date());
+});
 
 function getAllUrlParams(url) {
 
@@ -81,36 +108,13 @@ function getAllUrlParams(url) {
     return obj;
 }
 
-$(document).on("click", ".download-button", function(){
-    // Do something with `$(this)`.
-    console.log(this)
-    getPreSignedUrl(this.value)
-  });
-
-$('#input-form').on('submit', function(event) {
-    freeze_button();
-    event.preventDefault();
-    
-
-    console.log("form submitted!")  // sanity check
-    clearResults();
-    queryDatabase();
-    
-    return false;
-});
-
-$('#from_date').on('change', function() {
-    console.log('Is date valid? ', validate_date());
-});
-
-$('#to_date').on('change', function() {
-    console.log('Is date valid? ', validate_date());
-});
-
-getAgents();
-
 async function getAgents() {
     freeze_button();
+    // if (! id_token) {
+    //     console.log("Not seeing id_token in params")
+    //     window.location.replace(authUrl)
+    //     return false;
+    // }
     let return_data = {};
     const response = await fetch(agentUriEndpoint, {
 		method: 'GET',
@@ -125,7 +129,9 @@ async function getAgents() {
                 if (response['status'] === 200) {
                     return response.json();
                 } else {
-                    window.location.replace(authUrl)
+                    console.log("Houston we have a problem" + response)
+                    window.location.replace(authUrl);
+                    return false;
                 }
             }
         )
@@ -265,9 +271,7 @@ function download(dataurl) {
     link.href = dataurl;
     link.target = "_blank";
     link.click();
-  }
-
-//   getPreSignedUrl('Joe B._1234567890_2022-01-01_0130.wav')
+}
 
 function addCellText(row,index,value) {
     let td = row.insertCell(index)
