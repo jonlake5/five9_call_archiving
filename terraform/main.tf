@@ -265,9 +265,17 @@ resource "aws_lambda_function" "lambda_update_database" {
   runtime       = "python3.9"
   timeout       = 30
   memory_size   = 1024
+  source_code_hash = data.archive_file.lambda_update_database.output_base64sha256
   vpc_config {
     subnet_ids         = [aws_subnet.lambda_private_1.id, aws_subnet.lambda_private_2.id]
     security_group_ids = [aws_security_group.security_group_lambda.id]
+  }
+  environment {
+    variables = {
+      "DATABASE_HOST" = aws_rds_cluster.postgresql.endpoint,
+      "DATABASE_PORT" = aws_rds_cluster.postgresql.port,
+      "DATABASE_NAME" = aws_rds_cluster.postgresql.database_name
+    }
   }
   role = aws_iam_role.lambda_execution_role.arn
 
@@ -307,9 +315,17 @@ resource "aws_lambda_function" "lambda_get_agents" {
   runtime       = "python3.9"
   timeout       = 30
   memory_size   = 1024
+    source_code_hash = data.archive_file.lambda_get_agents.output_base64sha256
   vpc_config {
     subnet_ids         = [aws_subnet.lambda_private_1.id, aws_subnet.lambda_private_2.id]
     security_group_ids = [aws_security_group.security_group_lambda.id]
+  }
+    environment {
+      variables = {
+        "DATABASE_HOST" = aws_rds_cluster.postgresql.endpoint,
+        "DATABASE_PORT" = aws_rds_cluster.postgresql.port,
+        "DATABASE_NAME" = aws_rds_cluster.postgresql.database_name
+      }
   }
   role = aws_iam_role.lambda_execution_role.arn
 }
@@ -434,6 +450,19 @@ resource "aws_rds_cluster_instance" "instance1" {
   engine             = aws_rds_cluster.postgresql.engine
   engine_version     = aws_rds_cluster.postgresql.engine_version
 }
+
+
+resource "aws_secretsmanager_secret" "database_creds" {
+  description             = "User and password of Database"
+  name                    = "DatabaseCreds"
+  recovery_window_in_days = 0
+}
+
+resource "aws_secretsmanager_secret_version" "database_creds_value" {
+  secret_id     = aws_secretsmanager_secret.database_creds.id
+  secret_string = jsonencode({username="${aws_rds_cluster.postgresql.master_username}",password="${aws_rds_cluster.postgresql.master_password}"})
+}
+
 
 resource "aws_secretsmanager_secret" "database_endpoint" {
   description             = "Connection Endpoint of Database"
@@ -803,17 +832,25 @@ data "archive_file" "lambda_query_database" {
 }
 
 resource "aws_lambda_function" "lambda_query_database" {
-  filename      = data.archive_file.lambda_update_database.output_path
-  handler       = "lambda_function.lambda_handler"
+  filename      = data.archive_file.lambda_query_database.output_path
+  handler       = "lambda_db_query.lambda_handler"
   function_name = "lambda_query_database"
   runtime       = "python3.9"
   vpc_config {
     subnet_ids         = [aws_subnet.lambda_private_1.id, aws_subnet.lambda_private_2.id]
     security_group_ids = [aws_security_group.security_group_lambda.id]
   }
+  environment {
+    variables = {
+      "DATABASE_HOST" = aws_rds_cluster.postgresql.endpoint,
+      "DATABASE_PORT" = aws_rds_cluster.postgresql.port,
+      "DATABASE_NAME" = aws_rds_cluster.postgresql.database_name
+    }
+  }
   role    = aws_iam_role.lambda_execution_role.arn
   timeout = 30
   memory_size = 1024
+    source_code_hash = data.archive_file.lambda_query_database.output_base64sha256
 }
 
 locals {

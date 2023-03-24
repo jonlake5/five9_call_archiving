@@ -70,11 +70,12 @@ def generate_url(key,bucket_name,region):
     return key
 
 def database_connection():
-    db_host = get_secret("DatabaseEndpoint")
-    db_port = get_secret("DatabasePort")
-    db_password = get_secret("DatabaseMasterPassword")
-    db_user = get_secret("DatabaseUser")
-    db_name = get_secret("DatabaseName")
+    db_creds = json.loads(get_secret("DatabaseCreds"))
+    db_password = db_creds["password"]
+    db_user = db_creds["username"]
+    db_host = os.environ['DATABASE_HOST']
+    db_name = os.environ['DATABASE_NAME']
+    db_port = os.environ['DATABASE_PORT']
     return psycopg2.connect(user=db_user, password=db_password, host=db_host, database=db_name, port=db_port)
 
 def update_database(conn,agent_name,url,recording_date,consumer_number,time):

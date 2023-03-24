@@ -1,24 +1,18 @@
-
 import boto3
 from botocore.exceptions import ClientError
 import json
+import os
 import psycopg2
 
 
-
-
 def get_secret(secret_name):
-
-    #secret_name = "DatabaseEndpoint"
     region_name = "us-east-1"
-
     # Create a Secrets Manager client
     session = boto3.session.Session()
     client = session.client(
         service_name='secretsmanager',
         region_name=region_name
     )
-
     try:
         get_secret_value_response = client.get_secret_value(
             SecretId=secret_name
@@ -32,15 +26,13 @@ def get_secret(secret_name):
     secret = get_secret_value_response['SecretString']
     return secret
 
-
-
 def lambda_handler(event, context):
-
-    db_host = get_secret("DatabaseEndpoint")
-    db_port = get_secret("DatabasePort")
-    db_password = get_secret("DatabaseMasterPassword")
-    db_user = get_secret("DatabaseUser")
-    db_name = get_secret("DatabaseName")
+    db_creds = json.loads(get_secret("DatabaseCreds"))
+    db_password = db_creds["password"]
+    db_user = db_creds["username"]
+    db_host = os.environ['DATABASE_HOST']
+    db_name = os.environ['DATABASE_NAME']
+    db_port = os.environ['DATABASE_PORT']
 
     conn = psycopg2.connect(user=db_user, password=db_password, host=db_host, database=db_name, port=db_port)
     results = db_query(conn)
