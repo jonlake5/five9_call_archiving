@@ -56,12 +56,6 @@ function idToken(url) {
 
 async function getAgents() {
     freeze_button();
-    // if (! id_token) {
-    //     console.log("Not seeing id_token in params")
-    //     window.location.replace(authUrl)
-    //     return false;
-    // }
-    let return_data = {};
     const response = await fetch(agentUriEndpoint, {
 		method: 'GET',
 		headers: {
@@ -75,18 +69,24 @@ async function getAgents() {
                 if (response['status'] === 200) {
                     return response.json();
                 } else {
-                    console.log("Houston we have a problem" + response)
-                    window.location.replace(authUrl);
-                    return false;
+                    console.log("Houston we have a problem")
+                    throw new Error("Unsuccessful response. Redirecting to login.")
                 }
             }
         )
         .then(
-            json => return_data = json
+            json => {
+                listAgents(json['agents'])
+            }
+        )
+        .catch(
+            error => {
+                console.log(error)
+                window.location.replace(authUrl);
+            }
         )
         .finally(() => {
             unfreeze_button();
-            listAgents(return_data['agents']);
         })
 }
 
@@ -110,7 +110,6 @@ function listAgents(agents) {
 function clearResults() {
     let tbl = document.getElementById("results-table")
     if (tbl) {
-        // tbl.parentElement.style.backgroundColor = "#"
         tbl.parentNode.removeChild(tbl);
     }
 }
@@ -135,12 +134,26 @@ async function queryDatabase() {
         body: JSON.stringify(data)
     })
     .then( 
-        response => response.json()
+        response => {
+        if (response['status'] === 200) {
+            return response.json();
+        } else {
+            console.log("Houston we have a problem")
+            throw new Error("Unsuccessful response. Redirecting to login.")
+        }
+
+        }
     )
     .then(
         json => {
             console.log(json)
             displayResults(json['results'])
+        }
+    )
+    .catch(
+        error => {
+            console.log(error)
+            window.location.replace(authUrl);
         }
     )
     .finally(() => {
@@ -198,14 +211,25 @@ async function getPreSignedUrl(object_name) {
         body: JSON.stringify(data)
     })
     .then( 
-        response => { return response.text() }
-    )
+        response => { 
+            if (response['status'] === 200) {
+            return response.text() 
+        } else {
+            throw new Error("Unsuccessful response. Redirecting to login.")
+        }
+    })
     .then(
         json => {
             console.log(`This is the file we would pass ${json}`)
             download(json)
         }
     )
+    .catch( error => {
+        console.log(error)
+        window.location.replace(authUrl);
+    }
+        
+        )
     .finally(() => {
         return false;
         }
