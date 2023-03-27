@@ -10,7 +10,6 @@ variable "my_region" {
 
 variable "base_domain_name" {
     type = string
-    default = "jlake.aws.sentinel.com"
 }
 
 variable "auth_domain_name" {
@@ -41,4 +40,9 @@ variable "database_password" {
     description = "Database password"
     type = string
     sensitive = true
+}
+
+variable "aws_profile" {
+    description = "AWS CLI profile to use"
+    type = string
 }
