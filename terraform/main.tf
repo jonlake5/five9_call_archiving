@@ -451,7 +451,12 @@ resource "aws_lambda_permission" "allow_api_gateway_get_url" {
   function_name = aws_lambda_function.lambda_s3.function_name
   principal     = "apigateway.amazonaws.com"
   # source_arn    = "${aws_api_gateway_rest_api.api_gateway.arn}/*/*"
-  source_arn = "${aws_api_gateway_deployment.api_gateway_deployment.execution_arn}/${aws_api_gateway_method.get_url_method.http_method}/${aws_api_gateway_resource.get_url_resource.path_part}"
+  source_arn = "${aws_api_gateway_deployment.api_gateway_deployment.execution_arn}*/${aws_api_gateway_method.get_url_method.http_method}/${aws_api_gateway_resource.get_url_resource.path_part}"
+  depends_on = [
+    aws_api_gateway_method.api_method,
+    aws_api_gateway_method.get_agents_method,
+    aws_api_gateway_method.get_url_method
+  ]
 }
 
 
