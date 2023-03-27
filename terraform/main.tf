@@ -944,7 +944,7 @@ resource "aws_api_gateway_deployment" "api_gateway_deployment" {
     aws_api_gateway_integration.api_lambda_integration,
     aws_api_gateway_integration.api_lambda_get_agents,
     aws_api_gateway_integration.api_lambda_integration_s3,
-    aws_api_gateway_response.unauthorized
+    aws_api_gateway_gateway_response.unauthorized
   ]
 }
 
