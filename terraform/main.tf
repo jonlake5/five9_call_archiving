@@ -10,6 +10,7 @@ terraform {
 # Configure the AWS Provider
 provider "aws" {
   region = "us-east-1"
+  profile = var.aws_profile
 }
 
 ### Setup
@@ -939,7 +940,11 @@ resource "aws_api_gateway_deployment" "api_gateway_deployment" {
     aws_api_gateway_method.api_method,
     aws_api_gateway_method.get_agents_method,
     aws_api_gateway_method.get_url_method,
-    aws_api_gateway_authorizer.cognito_authorizer
+    aws_api_gateway_authorizer.cognito_authorizer,
+    aws_api_gateway_integration.api_lambda_integration,
+    aws_api_gateway_integration.api_lambda_get_agents,
+    aws_api_gateway_integration.api_lambda_integration_s3,
+    aws_api_gateway_response.unauthorized
   ]
 }
 
@@ -1140,6 +1145,14 @@ resource "aws_route53_record" "auth-cognito-A" {
     name    = aws_cognito_user_pool_domain.main.cloudfront_distribution
     zone_id = aws_cognito_user_pool_domain.main.cloudfront_distribution_zone_id
   }
+}
+
+##Cognito requires an A record at the apex of the domain, even if it points to nothing or is not needed
+resource "aws_route53_record" "domain-apex" {
+  type = "A"
+  name = var.route53_zone_name
+  zone_id = data.aws_route53_zone.my_zone.zone_id
+  records = ["192.168.1.1"]
 }
 
 ### Outputs
