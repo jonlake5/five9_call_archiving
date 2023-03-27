@@ -684,7 +684,8 @@ resource "aws_cloudfront_distribution" "s3_distribution" {
   #   prefix          = "myprefix"
   # }
   depends_on = [
-    aws_acm_certificate.app
+    aws_acm_certificate.app,
+    aws_acm_certificate_validation.cert_validation
   ]
 
   aliases = ["${var.app_domain_name}.${var.base_domain_name}"]
