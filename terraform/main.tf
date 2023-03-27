@@ -470,7 +470,7 @@ resource "aws_rds_cluster" "postgresql" {
   backtrack_window                    = 0
   deletion_protection                 = false
   enabled_cloudwatch_logs_exports     = []
-  iops                                = 0
+  # iops                                = 0
   tags                                = null
 }
 
@@ -683,6 +683,9 @@ resource "aws_cloudfront_distribution" "s3_distribution" {
   #   bucket          = "mylogs.s3.amazonaws.com"
   #   prefix          = "myprefix"
   # }
+  depends_on = [
+    aws_acm_certificate.app
+  ]
 
   aliases = ["${var.app_domain_name}.${var.base_domain_name}"]
 
@@ -908,6 +911,9 @@ resource "aws_api_gateway_authorizer" "cognito_authorizer" {
   rest_api_id = aws_api_gateway_rest_api.api_gateway.id
   type = "COGNITO_USER_POOLS"
   provider_arns = [aws_cognito_user_pool.user_pool.arn]
+  depends_on = [
+    aws_cognito_user_pool.user_pool
+  ]
 }
 
 resource "aws_api_gateway_stage" "api_gateway_stage" {
@@ -929,11 +935,13 @@ resource "aws_api_gateway_deployment" "api_gateway_deployment" {
     create_before_destroy = true
   }
   depends_on = [
-    aws_api_gateway_method.api_method
+    aws_api_gateway_method.api_method,
+    aws_api_gateway_method.get_agents_method,
+    aws_api_gateway_method.get_url_method
   ]
 }
 
-###Database query resource/method/integration
+## Database query resource/method/integration
 resource "aws_api_gateway_resource" "query_resource" {
     path_part     = "query"
     parent_id     = "${aws_api_gateway_rest_api.api_gateway.root_resource_id}"
