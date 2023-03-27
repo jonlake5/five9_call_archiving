@@ -4,7 +4,7 @@ import json
 import psycopg2
 import os
 from psycopg2.extensions import AsIs
-# import urllib.parse
+import urllib.parse
 
 
 def get_secret(secret_name):
@@ -64,10 +64,10 @@ def parse_file(file_name):
               "recording_ivr_module","recording_last_name","recording_length",
               "recording_number_1","recording_number_2","recording_number_3",
               "recording_owner","recording_session_id","recording_skill_name"]
-    values = file_string.split('_')
+    values = file_string.split('__')
     if len(fields) != len(values):
         raise Exception("The number of fields in the file did not line up with the number of defined fields.\n \
-              %s fields found in %s.\n %s fields expected" % (len(fields),file_string,len(values))
+              %s fields found in %s.\n %s fields expected" % (len(values),file_string,len(fields))
             )
     output_dict = {}
     index = 0
