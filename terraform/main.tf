@@ -299,7 +299,37 @@ resource "aws_lambda_function" "lambda_create_tables" {
     security_group_ids = [aws_security_group.security_group_lambda.id]
   }
   role = aws_iam_role.lambda_execution_role.arn
+  source_code_hash = data.archive_file.lambda_create_tables.output_base64sha256  
+}
 
+resource "aws_lambda_invocation" "create_tables" {
+  ##This should only run once after the database is created.
+  ##If it needs to be run again, change one of the key values. 
+  ##The key values have no affect on the function but will trigger it to run.
+  function_name = aws_lambda_function.lambda_create_tables.function_name
+
+  input = jsonencode({
+    key1 = "value2"
+    key2 = "value2"
+  })
+  depends_on = [
+    aws_rds_cluster.postgresql,
+    aws_rds_cluster_instance.instance1,
+    aws_secretsmanager_secret_version.database_name_value,
+    aws_secretsmanager_secret_version.database_password_value,
+    aws_secretsmanager_secret_version.database_endpoint_value,
+    aws_secretsmanager_secret_version.database_creds_value,
+    aws_secretsmanager_secret_version.database_user_value
+  ]
+}
+
+locals {
+  lambda_create_tables_result = jsondecode(aws_lambda_invocation.create_tables.result)
+  lambda_create_tables_message = jsondecode(aws_lambda_invocation.create_tables.result)
+}
+
+output "create_table_result_entry" {
+  value = "${local.lambda_create_tables_result.statusCode}: ${local.lambda_create_tables_message.body}"
 }
 
 data "archive_file" "lambda_get_agents" {

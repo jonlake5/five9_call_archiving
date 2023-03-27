@@ -200,7 +200,7 @@ async function getPreSignedUrl(object_name) {
     let data = {
         'object_name': object_name
     };
-    console.log(data);
+    console.log(`Trying to download ${data} by generating a presigned URL`);
 
     let response = await fetch(getUrlUriEndoint, {
         method: "POST",

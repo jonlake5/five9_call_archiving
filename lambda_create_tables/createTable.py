@@ -20,11 +20,24 @@ def create_tables():
     """
     CREATE TABLE recordings(
         recording_id SERIAL PRIMARY KEY,
-        recording_url TEXT,
+        recording_s3_key TEXT,
         recording_date DATE,
         recording_time TEXT,
         agent_id INT, 
-        consumer_number TEXT,
+        recording_consumer_number TEXT,
+        recording_call_guid TEXT,
+        recording_campaign_name TEXT,
+        recording_disposition_name TEXT,
+        recording_first_name TEXT,
+        recording_ivr_module TEXT,
+        recording_last_name TEXT,
+        recording_length TEXT,
+        recording_number_1 TEXT,
+        recording_number_2 TEXT,
+        recording_number_3 TEXT,
+        recording_owner TEXT,
+        recording_session_id TEXT,
+        recording_skill_name TEXT,
         CONSTRAINT fk_recording_agent
             FOREIGN KEY(agent_id)
                 REFERENCES agents(agent_id)

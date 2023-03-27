@@ -1,10 +1,10 @@
-
 import boto3
 from botocore.exceptions import ClientError
 import json
 import psycopg2
 import os
-import urllib.parse
+from psycopg2.extensions import AsIs
+# import urllib.parse
 
 
 def get_secret(secret_name):
@@ -28,7 +28,7 @@ def get_secret(secret_name):
         # https://docs.aws.amazon.com/secretsmanager/latest/apireference/API_GetSecretValue.html
         raise e
 
-    # Decrypts secret using the associated KMS key.
+    # Decrypts secret using the associated KMS key.len
     secret = get_secret_value_response['SecretString']
     return secret
     # Your code goes here.
@@ -41,14 +41,14 @@ def lambda_handler(event, context):
     file_name = s3Object['key'].replace('+',' ')
     print("Here is S3 Record %s" % s3Record)
     ##File format is agentName_callingNumber_date_time.wav
-    # bucket_name = s3Node['bucket']['name']
-    ## region = s3Record['awsRegion']
-    # url = generate_url(file_name,bucket_name,region)
-    (agent_name,consumer_number,recording_date,time) = parse_file(file_name)
-    print(agent_name)
-    
+    # (agent_name,consumer_number,recording_date,time) = parse_file(file_name)
+    #File format should be(agent_name,consumer_number,recording_date,time,call_guid,campaign_name,disposition_name,first_name,
+    #ivr_module,last_name,length,number_1,number_2,number_3,owner,session_id,skill_name) = parse_file(file_name)
+    #print(agent_name)
+    output_dict = parse_file(file_name)
+    print(output_dict)
     conn = database_connection()
-    update_database(conn,agent_name,file_name,recording_date,consumer_number,time)
+    update_database(conn,output_dict)
     conn.close()
     return {
     'statusCode': 200,
@@ -58,16 +58,26 @@ def lambda_handler(event, context):
 def parse_file(file_name):
     file_string = os.path.splitext(file_name)[0]
     file_string = file_string.replace('+', ' ')
-    return file_string.split('_')
+    fields = ["agent_id","recording_consumer_number","recording_date",
+              "recording_time","recording_call_guid","recording_campaign_name",
+              "recording_disposition_name","recording_first_name",
+              "recording_ivr_module","recording_last_name","recording_length",
+              "recording_number_1","recording_number_2","recording_number_3",
+              "recording_owner","recording_session_id","recording_skill_name"]
+    values = file_string.split('_')
+    if len(fields) != len(values):
+        raise Exception("The number of fields in the file did not line up with the number of defined fields.\n \
+              %s fields found in %s.\n %s fields expected" % (len(fields),file_string,len(values))
+            )
+    output_dict = {}
+    index = 0
+    for field in fields:
+        output_dict[field] = values[index]
+        index = index + 1
+    ##Add the S3 Key to the dict
+    output_dict["recording_s3_key"] = file_name
+    return output_dict
 
-def generate_url(key,bucket_name,region):
-    url = "https://%s.s3.%s.amazonaws.com/%s" % (
-        bucket_name,
-        region,
-        urllib.parse.quote(key, safe="~()*!.'"),
-    )
-    #print(url)
-    return key
 
 def database_connection():
     db_creds = json.loads(get_secret("DatabaseCreds"))
@@ -78,14 +88,21 @@ def database_connection():
     db_port = os.environ['DATABASE_PORT']
     return psycopg2.connect(user=db_user, password=db_password, host=db_host, database=db_name, port=db_port)
 
-def update_database(conn,agent_name,url,recording_date,consumer_number,time):
-    agent_id = get_agent_id(conn,agent_name)
-    print("Found agent_id: %s" % agent_id)
+def update_database(conn,update_dict):
+    update_dict["agent_id"] = get_agent_id(conn,update_dict["agent_id"])
+    print("Found agent_id: %s" % update_dict["agent_id"])
     print('#### Update database ####')
-    print(agent_id,agent_name,url,recording_date,consumer_number)
+    # print(agent_id,agent_name,url,recording_date,consumer_number)
+    print(update_dict)
     
+    columns = update_dict.keys()
+    values = update_dict.values()
+    insert_statement = 'insert into recordings (%s) values %s'
+
     cur = conn.cursor()
-    cur.execute("INSERT INTO recordings (recording_url,recording_date,agent_id,consumer_number,recording_time) VALUES ('%s','%s','%s','%s','%s')" % (url,recording_date,agent_id,consumer_number,time))
+    query = cur.mogrify(insert_statement, (AsIs(','.join(columns)), tuple(values)))
+    cur.execute(query)
+    # cur.execute("INSERT INTO recordings (recording_url,recording_date,agent_id,consumer_number,recording_time) VALUES ('%s','%s','%s','%s','%s')" % (url,recording_date,agent_id,consumer_number,time))
     conn.commit()
     cur.close()
         
