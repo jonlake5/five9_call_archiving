@@ -459,8 +459,8 @@ resource "aws_rds_cluster" "postgresql" {
   cluster_identifier                  = "aurora-cluster-demo"
   engine                              = "aurora-postgresql"
   database_name                       = "callsearch"
-  master_username                     = "callsearch"
-  master_password                     = "password"
+  master_username                     = var.database_username
+  master_password                     = var.database_password
   backup_retention_period             = 5
   preferred_backup_window             = "07:00-09:00"
   db_subnet_group_name                = aws_db_subnet_group.db_subnet_group.id
@@ -1086,6 +1086,9 @@ module "api-gateway-enable-cors-get-url" {
 resource "aws_cognito_user_pool" "user_pool" {
   name = "callsearch_pool"
   mfa_configuration  = "OFF"
+  admin_create_user_config {
+    allow_admin_create_user_only = true
+  }
 
 }
 

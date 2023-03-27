@@ -30,3 +30,15 @@ variable "route53_zone_name" {
 variable "cognito_user_password" {
     type = string
 }
+
+variable "database_username" {
+    description = "Database username"
+    type = string
+    # sensitive = true
+}
+
+variable "database_password" {
+    description = "Database password"
+    type = string
+    sensitive = true
+}
