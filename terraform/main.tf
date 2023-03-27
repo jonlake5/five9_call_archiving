@@ -923,7 +923,7 @@ resource "aws_api_gateway_stage" "api_gateway_stage" {
   rest_api_id   = aws_api_gateway_rest_api.api_gateway.id
   stage_name    = "prod"
   description   = "Added url resource"
-  depends_on    = ["aws_api_gateway_deployment.api_gateway_deployment"]
+  depends_on    = [aws_api_gateway_deployment.api_gateway_deployment]
 }
 
 resource "aws_api_gateway_deployment" "api_gateway_deployment" {
@@ -945,7 +945,7 @@ resource "aws_api_gateway_deployment" "api_gateway_deployment" {
     aws_api_gateway_integration.api_lambda_integration,
     aws_api_gateway_integration.api_lambda_get_agents,
     aws_api_gateway_integration.api_lambda_integration_s3,
-    aws_api_gateway_gatewayv_response.unauthorized
+    aws_api_gateway_gateway_response.unauthorized
   ]
 }
 
