@@ -1,8 +1,12 @@
 const uriBase = 'https://qg2omq2odh.execute-api.us-east-1.amazonaws.com/prod/'
+const appUrl = 'app.jlake.aws.sentinel.com'
+const authUrlBase = 'auth.jlake.aws.sentinel.com'
 const uriEndpoint = uriBase + 'query';
+const cognitoClientId = 'fpmf66abi4079ea7m5ecbl5fo'
+// Update the above values for a new deployment
 const agentUriEndpoint = uriBase + 'agents';
 const getUrlUriEndoint = uriBase + 'get_url';
-const authUrl = 'https://auth.jlake.aws.sentinel.com/login?client_id=fpmf66abi4079ea7m5ecbl5fo&response_type=token&scope=email+openid&redirect_uri=https%3A%2F%2Fapp.jlake.aws.sentinel.com'
+const authUrl = `https://${authUrlBase}/login?client_id=${cognitoClientId}&response_type=token&scope=email+openid&redirect_uri=https%3A%2F%2F${appUrl}`
 
 //Verify this person is authenticated
 const id_token = idToken(window.location.href);
