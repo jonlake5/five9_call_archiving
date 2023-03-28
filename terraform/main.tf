@@ -1147,7 +1147,7 @@ resource "aws_route53_record" "auth-cognito-A" {
 
 ### Outputs
 output "api_url" {
-  value = aws_api_gateway_stage.api_gateway_stage.invoke_url
+  value = "${aws_api_gateway_stage.api_gateway_stage.invoke_url}/"
 }
 
 output "recording_bucket_name" {
