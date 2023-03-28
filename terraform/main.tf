@@ -368,6 +368,12 @@ resource "aws_lambda_permission" "allow_api_gateway_get_agent" {
   principal     = "apigateway.amazonaws.com"
   # source_arn    = "${aws_api_gateway_rest_api.api_gateway.arn}/*/*"
   source_arn = "${aws_api_gateway_deployment.api_gateway_deployment.execution_arn}*/${local.get_agent_api_method}/${local.get_agent_api_resource}"
+  depends_on = [
+    aws_api_gateway_method.api_method,
+    aws_api_gateway_method.get_agents_method,
+    aws_api_gateway_method.get_url_method,
+    aws_api_gateway_deployment.api_gateway_deployment
+  ]
 }
 
 locals {
