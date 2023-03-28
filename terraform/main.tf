@@ -1116,13 +1116,20 @@ resource "aws_cognito_user_pool" "user_pool" {
   admin_create_user_config {
     allow_admin_create_user_only = true
   }
-
+  depends_on = [
+    aws_acm_certificate.app,
+    aws_acm_certificate_validation.cert_validation
+  ]
 }
 
 resource "aws_cognito_user_pool_domain" "main" {
   domain          = "${var.auth_domain_name}.${var.base_domain_name}"
   certificate_arn = aws_acm_certificate.app.arn
   user_pool_id    = aws_cognito_user_pool.user_pool.id
+  depends_on = [
+    aws_acm_certificate.app,
+    aws_acm_certificate_validation.cert_validation
+  ]
 }
 
 resource "aws_cognito_user_pool_client" "client" {
@@ -1136,6 +1143,10 @@ resource "aws_cognito_user_pool_client" "client" {
   allowed_oauth_scopes                  = ["email", "openid"]
   supported_identity_providers          = ["COGNITO"]
   explicit_auth_flows                   = ["ALLOW_REFRESH_TOKEN_AUTH", "ALLOW_USER_SRP_AUTH"]
+  depends_on = [
+    aws_acm_certificate.app,
+    aws_acm_certificate_validation.cert_validation
+  ]  
 }
 
 resource "aws_cognito_user" "example" {
