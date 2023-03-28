@@ -1152,6 +1152,17 @@ resource "aws_cognito_user_pool_client" "client" {
   ]  
 }
 
+output "cognito_client_id" {
+value = "${aws_cognito_user_pool_client.client.id}"
+}
+
+output "app_url" {
+value = "${var.app_domain_name}.${var.base_domain_name}"
+}
+
+output "auth_url" {
+  value = "${var.auth_domain_name}.${var.base_domain_name}"
+}
 resource "aws_cognito_user" "example" {
   user_pool_id = aws_cognito_user_pool.user_pool.id
   username     = "jlake@sentinel.com"
