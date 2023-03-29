@@ -802,7 +802,8 @@ data "aws_iam_policy_document" "S3PutObject" {
       "s3:DeleteObjectVersion",
       "s3:GetObjectVersion",
       "s3:GetObjectACL",
-      "s3:PutObjectAcl"
+      "s3:PutObjectAcl",
+      "s3:ListObject"
     ]
     resources = ["${aws_s3_bucket.recording_bucket.arn}*"]
   }
