@@ -761,30 +761,6 @@ resource "aws_route53_record" "app_cname" {
 
 ##IAM User and secret key
 
-# resource "aws_iam_role" "S3TransferUser" {
-#   name               = "S3TransferUser"
-#   assume_role_policy = data.aws_iam_policy_document.assume_role_transfer.json
-# }
-
-# data "aws_iam_policy_document" "assume_role_transfer" {
-#   statement {
-#     effect = "Allow"
-
-#     principals {
-#       type        = "AWS"
-#       identifiers = [aws_iam_user.user.arn]
-#     }
-
-#     actions = ["sts:AssumeRole"]
-#   }
-# }
-
-# resource "aws_iam_role_policy" "role_S3_upload" {
-#   name   = "S3TransferRole"
-#   role   = aws_iam_role.S3TransferUser.id
-#   policy = data.aws_iam_policy_document.S3PutObject.json
-# }
-
 data "aws_iam_policy_document" "S3PutObject" {
   statement {
     sid       = "AllowAccesstoS3"
