@@ -4,8 +4,6 @@ import json
 import psycopg2
 import os
 from psycopg2.extensions import AsIs
-import urllib.parse
-
 
 def get_secret(secret_name):
 
@@ -35,24 +33,27 @@ def get_secret(secret_name):
 
 def lambda_handler(event, context):
     s3Message = json.loads(event['Records'][0]['Sns']['Message'])
-    s3Node = s3Message['Records'][0]['s3']
     s3Object = s3Message['Records'][0]['s3']['object']
-    s3Record = s3Message['Records'][0]
     file_name = s3Object['key'].replace('+',' ')
-    print("Here is S3 Record %s" % s3Record)
-    ##File format is agentName_callingNumber_date_time.wav
-    # (agent_name,consumer_number,recording_date,time) = parse_file(file_name)
-    #File format should be(agent_name,consumer_number,recording_date,time,call_guid,campaign_name,disposition_name,first_name,
-    #ivr_module,last_name,length,number_1,number_2,number_3,owner,session_id,skill_name) = parse_file(file_name)
-    #print(agent_name)
-    output_dict = parse_file(file_name)
-    print(output_dict)
-    conn = database_connection()
-    update_database(conn,output_dict)
-    conn.close()
+
+    try:
+        output_dict = parse_file(file_name)
+    except ValueError as e: 
+        return output_handler(500,e)
+    try:
+        conn = database_connection()
+        update_database(conn,output_dict)
+        conn.close()
+    except psycopg2.OperationalError as e:
+        if conn:
+            conn.close()
+        return output_handler(500,e)
+    return output_handler(200,"Updated database for %s" %file_name)
+
+def output_handler(statusCode,body):
     return {
-    'statusCode': 200,
-    'body': json.dumps('Hello from Lambda!')
+        'statusCode': statusCode,
+        'body': json.dumps(body)
     }
 
 def parse_file(file_name):
@@ -66,7 +67,7 @@ def parse_file(file_name):
               "recording_owner","recording_session_id","recording_skill_name"]
     values = file_string.split('__')
     if len(fields) != len(values):
-        raise Exception("The number of fields in the file did not line up with the number of defined fields.\n \
+        raise ValueError("The number of fields in the file did not line up with the number of defined fields.\n \
               %s fields found in %s.\n %s fields expected" % (len(values),file_string,len(fields))
             )
     output_dict = {}
@@ -78,7 +79,6 @@ def parse_file(file_name):
     output_dict["recording_s3_key"] = file_name
     return output_dict
 
-
 def database_connection():
     db_creds = json.loads(get_secret("DatabaseCreds"))
     db_password = db_creds["password"]
@@ -86,13 +86,15 @@ def database_connection():
     db_host = os.environ['DATABASE_HOST']
     db_name = os.environ['DATABASE_NAME']
     db_port = os.environ['DATABASE_PORT']
-    return psycopg2.connect(user=db_user, password=db_password, host=db_host, database=db_name, port=db_port)
+    try:
+        return psycopg2.connect(user=db_user, password=db_password, host=db_host, database=db_name, port=db_port)
+    except psycopg2.OperationalError as e:
+        raise psycopg2.OperationalError(e)
 
 def update_database(conn,update_dict):
     update_dict["agent_id"] = get_agent_id(conn,update_dict["agent_id"])
     print("Found agent_id: %s" % update_dict["agent_id"])
     print('#### Update database ####')
-    # print(agent_id,agent_name,url,recording_date,consumer_number)
     print(update_dict)
     
     columns = update_dict.keys()

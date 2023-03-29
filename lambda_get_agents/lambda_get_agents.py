@@ -27,9 +27,23 @@ def get_secret(secret_name):
     return secret
 
 def lambda_handler(event, context):
-    db_creds = json.loads(get_secret("DatabaseCreds"))
-    db_password = db_creds["password"]
-    db_user = db_creds["username"]
+    cors_headers = {
+        "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+    }
+    
+    try:
+        db_creds = json.loads(get_secret("DatabaseCreds"))
+        db_password = db_creds["password"]
+        db_user = db_creds["username"]
+    except ClientError as e:
+        return {
+            'statusCode': 500,
+            'headers'   : cors_headers,
+            'body'      : json.dumps("{'error'}: 'Secrets Error'")
+        }
+    
     db_host = os.environ['DATABASE_HOST']
     db_name = os.environ['DATABASE_NAME']
     db_port = os.environ['DATABASE_PORT']
@@ -44,15 +58,10 @@ def lambda_handler(event, context):
     return_json = {'agents': return_data}
     print(return_json)
     return {
-    'statusCode': 200,
-    "headers": {
-            "Access-Control-Allow-Headers": "Content-Type",
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
-        },
-    'body': json.dumps(return_json)
+        'statusCode': 200,
+        "headers": cors_headers,
+        'body': json.dumps(return_json)
     }
-
 
 def db_query(conn):
     cur = conn.cursor()
