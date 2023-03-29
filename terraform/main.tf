@@ -759,42 +759,31 @@ resource "aws_route53_record" "app_cname" {
   
 }
 
+##IAM User and secret key
 
-### Transfer Server
-resource "aws_transfer_server" "call_upload" {
-  endpoint_type          = "PUBLIC"
-  protocols              = ["SFTP"]
-  identity_provider_type = "SERVICE_MANAGED"
-  tags = {
-    Name = "Call Upload"
-  }
-}
+# resource "aws_iam_role" "S3TransferUser" {
+#   name               = "S3TransferUser"
+#   assume_role_policy = data.aws_iam_policy_document.assume_role_transfer.json
+# }
 
-resource "aws_transfer_user" "upload_user" {
-  server_id           = aws_transfer_server.call_upload.id
-  user_name           = "upload_user"
-  home_directory      = "/${aws_s3_bucket.recording_bucket.id}"
-  home_directory_type = "PATH"
-  role                = aws_iam_role.S3TransferUser.arn
-}
+# data "aws_iam_policy_document" "assume_role_transfer" {
+#   statement {
+#     effect = "Allow"
 
-resource "aws_iam_role" "S3TransferUser" {
-  name               = "S3TransferUser"
-  assume_role_policy = data.aws_iam_policy_document.assume_role_transfer.json
-}
+#     principals {
+#       type        = "AWS"
+#       identifiers = [aws_iam_user.user.arn]
+#     }
 
-data "aws_iam_policy_document" "assume_role_transfer" {
-  statement {
-    effect = "Allow"
+#     actions = ["sts:AssumeRole"]
+#   }
+# }
 
-    principals {
-      type        = "Service"
-      identifiers = ["transfer.amazonaws.com"]
-    }
-
-    actions = ["sts:AssumeRole"]
-  }
-}
+# resource "aws_iam_role_policy" "role_S3_upload" {
+#   name   = "S3TransferRole"
+#   role   = aws_iam_role.S3TransferUser.id
+#   policy = data.aws_iam_policy_document.S3PutObject.json
+# }
 
 data "aws_iam_policy_document" "S3PutObject" {
   statement {
@@ -819,10 +808,20 @@ data "aws_iam_policy_document" "S3PutObject" {
   }
 }
 
-resource "aws_iam_role_policy" "role_S3_upload" {
-  name   = "S3TransferRole"
-  role   = aws_iam_role.S3TransferUser.id
+
+
+resource "aws_iam_user" "user" {
+  name = var.iam_user
+}
+
+resource "aws_iam_user_policy" "user_policy" {
+  name   = "S3Access"
+  user   = aws_iam_user.user.name
   policy = data.aws_iam_policy_document.S3PutObject.json
+}
+
+resource "aws_iam_access_key" "user_key" {
+  user = aws_iam_user.user.name
 }
 
 
@@ -1162,11 +1161,11 @@ output "web_bucket_url" {
   value = aws_s3_bucket_website_configuration.web_config.website_endpoint
 }
 
-output "sftp_host" {
-  value = aws_transfer_server.call_upload.endpoint
+output "s3_secret_key" {
+  value = aws_iam_access_key.user_key.secret
+  sensitive = true
 }
 
-output "sftp_id" {
-  value = aws_transfer_server.call_upload.id
+output "s3_access_key" {
+  value = aws_iam_access_key.user_key.id
 }
-

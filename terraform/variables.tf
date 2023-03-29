@@ -46,3 +46,8 @@ variable "aws_profile" {
     description = "AWS CLI profile to use"
     type = string
 }
+
+variable "iam_user" {
+    description = "username of IAM user to upload S3 files"
+    type = string
+}
