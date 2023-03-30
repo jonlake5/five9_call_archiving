@@ -1,4 +1,5 @@
-body,html {
+body,
+html {
     height: 100vh;
     width: 100vw;
     margin: 0;
@@ -11,6 +12,26 @@ body {
     font-size: 16;
 }
 
+#header-bar {
+    background-color: cornflowerblue;
+    height: 60px;
+    width: 100vw;
+    color: white;
+    
+
+
+}
+
+#header-text {
+    height: 60px;
+    line-height: 60px;
+    width: auto;
+    padding-left: 40px;
+    vertical-align: middle;
+    size: 18pt;
+    
+}
+
 #main-window {
     display: flex;
     flex-direction: column;
@@ -21,13 +42,16 @@ body {
 
 #search-box {
     display: flex;
-    flex-direction: row;
+    /* flex-direction: row; */
+    justify-content: center;
     background: #fff;
-    margin-bottom: 25px;
+    
 }
 
 #input-form {
-    width: 100%;
+    /* width: auto; */
+    /* align-self: center */
+    vertical-align: middle;
 }
 
 #results-box {
@@ -47,6 +71,7 @@ body {
     display: flex;
     flex-direction: column;
     height: fit-content;
+    overflow-y: auto;
 }
 
 .input-field {
@@ -58,4 +83,3 @@ td {
     width: 150;
     text-align: center;
 }
-
