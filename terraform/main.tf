@@ -126,12 +126,17 @@ resource "aws_vpc_security_group_ingress_rule" "allow_postgres_inbound" {
 
 ### S3 recording bucket, notifications and policies
 
-resource "aws_s3_bucket_intelligent_tiering_configuration" "recording_bucket_tiering" {
+resource "aws_s3_bucket_lifecycle_configuration" "example" {
   bucket = aws_s3_bucket.recording_bucket.id
-  name   = "EntireBucket"
-  tiering {
-    access_tier = "ARCHIVE_ACCESS"
-    days        = var.days_until_tiering
+
+  rule {
+    id = "rule-1"
+    filter {}
+    transition {
+      days = var.days_until_tiering
+      storage_class = "INTELLIGENT_TIERING"
+    }
+    status = "Enabled"
   }
 }
 
