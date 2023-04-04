@@ -4,6 +4,7 @@ import json
 import psycopg2
 import os
 from psycopg2.extensions import AsIs
+import urllib.parse
 
 def get_secret(secret_name):
 
@@ -57,6 +58,8 @@ def output_handler(statusCode,body):
     }
 
 def parse_file(file_name):
+    file_name = urllib.parse.unquote(file_name)
+    print("File name is %s" % file_name)
     file_string = os.path.splitext(file_name)[0]
     file_string = file_string.replace('+', ' ')
     fields = ["agent_id","recording_consumer_number","recording_date",
