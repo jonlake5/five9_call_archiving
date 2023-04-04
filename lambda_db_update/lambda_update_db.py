@@ -80,6 +80,8 @@ def parse_file(file_name):
         index = index + 1
     ##Add the S3 Key to the dict
     output_dict["recording_s3_key"] = file_name
+    ##Change time from underscore to colon
+    output_dict["recording_time"] = output_dict["recording_time"].replace('_',':')
     return output_dict
 
 def database_connection():
