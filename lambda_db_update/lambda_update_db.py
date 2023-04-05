@@ -40,7 +40,7 @@ def lambda_handler(event, context):
     try:
         output_dict = parse_file(file_name)
     except ValueError as e: 
-        return output_handler(500,e)
+        return output_handler(500,e.__dict__)
     try:
         conn = database_connection()
         update_database(conn,output_dict)
@@ -48,13 +48,13 @@ def lambda_handler(event, context):
     except psycopg2.OperationalError as e:
         if conn:
             conn.close()
-        return output_handler(500,e)
+        return output_handler(500,e.__dict__)
     return output_handler(200,"Updated database for %s" %file_name)
 
 def output_handler(statusCode,body):
     return {
         'statusCode': statusCode,
-        'body': json.dumps(body)
+        'body': body
     }
 
 def parse_file(file_name):
