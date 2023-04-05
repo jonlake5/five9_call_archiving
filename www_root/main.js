@@ -226,7 +226,7 @@ async function getPreSignedUrl(object_name) {
     .then(
         json => {
             console.log(`This is the file we would pass ${json}`)
-            download(json)
+            download(json, object_name)
         }
     )
     .catch( error => {
@@ -241,12 +241,23 @@ async function getPreSignedUrl(object_name) {
     )
 }
 
-function download(dataurl) {
-    const link = document.createElement("a");
-    link.href = dataurl;
-    link.target = "_blank";
+
+const download = async (url, filename) => {
+    const response = await fetch(url);
+    const blob = await response.blob();
+    const link = document.createElement('a');
+    link.href = window.URL.createObjectURL(blob);
+    link.download = filename;
     link.click();
-}
+  };
+
+
+// function download(dataurl) {
+//     const link = document.createElement("a");
+//     link.href = dataurl;
+//     link.target = "_blank";
+//     link.click();
+// }
 
 function addCellText(row,index,value) {
     let td = row.insertCell(index)

@@ -144,6 +144,16 @@ resource "aws_s3_bucket" "recording_bucket" {
   bucket_prefix = "recording-bucket"
 }
 
+resource "aws_s3_bucket_cors_configuration" "recording_cors" {
+  bucket = aws_s3_bucket.recording_bucket.id
+  cors_rule {
+    allowed_methods = ["GET"]
+    allowed_origins = ["*"]
+    allowed_headers = ["*"]
+    expose_headers = []
+  }
+}
+
 resource "aws_s3_bucket_notification" "recording_bucket_notification" {
   bucket = aws_s3_bucket.recording_bucket.id
   topic {
